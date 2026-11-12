@@ -432,7 +432,7 @@ and were checked against it tick for tick in MuJoCo.
 ```bibtex
 @misc{hiwbc,
   title  = {hiWBC: A Unified Whole-Body Control Layer for Humanoid Robots},
-  author = {Li, Peng and Zhang, Yifei and Zhuang, Zihan and Dong, Yi and Gui, Tao and Qiu, Xipeng},
+  author = {Li, Peng and Zhuang, Zihan and Zhang, Yifei and Dong, Yi and Gui, Tao and Qiu, Xipeng},
   year   = {2026},
   url    = {https://github.com/humanoidintelligence/hiWBC}
 }

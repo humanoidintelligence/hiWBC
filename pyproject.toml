@@ -12,8 +12,8 @@ requires-python = ">=3.9"
 license = { text = "Apache-2.0" }
 authors = [
     { name = "Peng Li" },
-    { name = "Yifei Zhang" },
     { name = "Zihan Zhuang" },
+    { name = "Yifei Zhang" },
     { name = "Yi Dong" },
     { name = "Tao Gui" },
     { name = "Xipeng Qiu" },
