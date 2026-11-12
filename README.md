@@ -6,7 +6,7 @@
 
 [OpenMOSS Group](https://openmoss.ai) / [Shanghai Innovation Institute](https://www.sii.edu.cn/) / [Fudan University](https://www.fudan.edu.cn/en/)
 
-English | [简体中文](./README.zh-CN.md)
+**English** | [简体中文](./README.zh-CN.md) · **Docs:** [Guides](docs/guides/README.md) · [API reference](docs/api.md) · [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md)
 
 <!-- controller-gallery:start -->
 
@@ -15,8 +15,6 @@ English | [简体中文](./README.zh-CN.md)
 <tr><td align="center"><a href="docs/guides/locomotion.md#unitree_loco-unitree_rl_gym-gait"><img src="assets/controllers/unitree_loco.gif" width="130" alt="unitree_loco"></a><br><sub>unitree_loco</sub></td><td align="center"><a href="docs/guides/locomotion.md#smooth_loco"><img src="assets/controllers/smooth_loco.gif" width="130" alt="smooth_loco"></a><br><sub>smooth_loco</sub></td><td align="center"><a href="docs/guides/locomotion.md#amo_loco"><img src="assets/controllers/amo_loco.gif" width="130" alt="amo_loco"></a><br><sub>amo_loco</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#asap_tracker"><img src="assets/controllers/asap_tracker.gif" width="130" alt="asap_tracker"></a><br><sub>asap_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#beyondmimic_tracker"><img src="assets/controllers/beyondmimic_tracker.gif" width="130" alt="beyondmimic_tracker"></a><br><sub>beyondmimic_tracker</sub></td></tr>
 <tr><td align="center"><a href="docs/guides/motion_tracking.md#twist_tracker"><img src="assets/controllers/twist_tracker.gif" width="130" alt="twist_tracker"></a><br><sub>twist_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#kungfubot_tracker"><img src="assets/controllers/kungfubot_tracker.gif" width="130" alt="kungfubot_tracker"></a><br><sub>kungfubot_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#protomotions_tracker-h2h"><img src="assets/controllers/protomotions_tracker.gif" width="130" alt="protomotions_tracker"></a><br><sub>protomotions_tracker</sub></td><td align="center"><a href="docs/guides/sonic.md#4-track-a-reference-motion-joint-mode"><img src="assets/controllers/sonic.gif" width="130" alt="sonic"></a><br><sub>sonic</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#supermimic"><img src="assets/controllers/supermimic.gif" width="130" alt="supermimic"></a><br><sub>supermimic</sub></td></tr>
 </table>
-
-Each clip runs in MuJoCo on the Unitree G1 through hiRobot's `wbc` layer. Click one for its guide.
 
 <!-- controller-gallery:end -->
 
