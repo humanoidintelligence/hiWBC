@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hiwbc"
+# The version is written once, as __version__ in src/hiwbc/__init__.py.
+dynamic = ["version"]
+description = "A unified whole-body control layer that turns high-level motion commands into balanced joint targets for humanoid robots."
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "Apache-2.0" }
+authors = [
+    { name = "Peng Li" },
+    { name = "Yifei Zhang" },
+    { name = "Zihan Zhuang" },
+    { name = "Yi Dong" },
+    { name = "Tao Gui" },
+    { name = "Xipeng Qiu" },
+]
+keywords = ["whole-body-control", "humanoid", "reinforcement-learning", "locomotion", "teleoperation", "vla", "robot"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: Apache Software License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy>=1.23",
+    # The WbcRobot layer (hiwbc.robot) and its plugin entry point. The controllers
+    # themselves import only numpy.
+    "hirobot>=0.0.3",
+]
+
+[project.optional-dependencies]
+# Run a controller policy forward with PyTorch.
+torch = ["torch>=2.0"]
+# Run ONNX checkpoints (e.g. SONIC's released encoder / decoder).
+onnx = ["onnxruntime>=1.16"]
+dev = ["pytest>=7.0", "ruff>=0.4"]
+
+[project.entry-points."hirobot.drivers"]
+# hiRobot loads this group at import; hiwbc.plugin registers the "wbc" layer.
+wbc = "hiwbc.plugin"
+
+[project.urls]
+Homepage = "https://github.com/humanoidintelligence/hiWBC"
+Repository = "https://github.com/humanoidintelligence/hiWBC"
+Changelog = "https://github.com/humanoidintelligence/hiWBC/blob/main/CHANGELOG.md"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.dynamic]
+version = { attr = "hiwbc.__version__" }
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+# External reference checkouts ship their own suites; keep pytest out of them.
+norecursedirs = ["references", ".git", "*.egg-info", "build", "dist", ".venv"]
+# Policies ship as TorchScript, which torch now marks deprecated; the tests load it on purpose.
+filterwarnings = ["ignore:`torch.jit.*` is deprecated:FutureWarning"]

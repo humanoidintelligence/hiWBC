@@ -1,0 +1,60 @@
+# Changelog
+
+User-facing changes in each hiWBC release, newest first. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Before 0.1.0, any
+release may change the API incompatibly; such changes are listed under
+"Removed" or "Changed" and marked **breaking**.
+
+## [0.0.1] - 2026-11-12
+
+First public release. Needs hiRobot 0.0.3 or later.
+
+### Added
+
+- **Controller contract**: `Controller` turns `ControllerState` (joint
+  positions and velocities, base orientation and angular velocity) plus a
+  `Reference` into a `JointTarget` (PD position target with per-joint gains).
+  A controller is a pure step with no hardware I/O; the model forward is
+  injected, so observations are tested with a stub and no weights. A
+  `Reference` is a velocity command (`VELOCITY`), reference-motion frames
+  (`MOTION_FRAMES`) or a motion latent (`LATENT`).
+- **11 built-in controllers**, each reproducing the observation layout its
+  policy was trained with:
+  - velocity locomotion: `unitree_loco` (unitree_rl_gym / unitree_rl_lab),
+    `smooth_loco` (Smooth Humanoid Locomotion), `amo_loco` (AMO);
+  - motion tracking: `asap_tracker` (ASAP), `twist_tracker` (TWIST),
+    `beyondmimic_tracker` (BeyondMimic), `protomotions_tracker`
+    (ProtoMotions), `kungfubot_tracker` (KungfuBot / PBHC), `supermimic`
+    (unofficial SuperMimic reproduction);
+  - universal motion token: `sonic` (GEAR-SONIC: `default`, `low_latency`,
+    `sonic_v1_1`), with NVIDIA's kinematic planner for velocity commands;
+  - `echo`, a dependency-free stub for testing the contract.
+- **Profiles** (`hiwbc.load("<controller>/<robot>", variant=...)`): the values
+  each Unitree G1 checkpoint was trained with (joint order, gains, default
+  pose, scales), kept apart from the controller code. Checkpoint variants are
+  profile variants; behaviors baked into ASAP and BeyondMimic checkpoints are
+  listed per profile.
+- **Checkpoint loading**: `load_torchscript_runner` and `load_onnx_runner`
+  behind the optional `torch` and `onnx` extras. hiWBC does not ship weights;
+  the guides say where to download each one.
+- **hiRobot layer** (`layers: [{type: wbc, profile: ...}]` in a robot config):
+  the robot takes `BASE_VELOCITY`, `BASE_POSE`, `CARTESIAN`, `MOTION_LATENT`
+  and `MOTION_CLIP` commands instead of joint targets. The layer runs the
+  controller at the control rate, ramps to the default pose before handing
+  over, stands when commands stop or time out, damps on any fault, and reports
+  command progress in `RobotStatus.command`.
+- **Motion clips**: `ClipPlayer` turns a hiRobot `MotionClip` into reference
+  terms for `sonic`, `twist_tracker`, `supermimic`, `kungfubot_tracker` and
+  `protomotions_tracker`.
+- **Remote inference**: `python -m hiwbc.serve` runs the model forward on a
+  workstation while the control loop, observation and safety checks stay on
+  the robot; a forward that misses `remote_timeout_s` damps the robot. The
+  service has no authentication; use it on a trusted network.
+- **Guides** in English and Simplified Chinese: getting started, locomotion,
+  motion tracking, SONIC, and running a controller as a hiRobot robot.
+- This release has been run in simulation only. The controllers that follow
+  RoboJuDo match it tick for tick in MuJoCo (we ran those policies on a real
+  robot earlier through RoboJuDo); `sonic` matches NVIDIA's C++ deployment and
+  `supermimic` matches supermimic_deploy.
+
+[0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1
