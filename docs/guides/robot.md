@@ -142,8 +142,10 @@ Rules that apply to every mode:
   BeyondMimic's `dance`) are listed by `robot.list_layer_skills()` and started
   with `robot.run_layer_skill(name)`; `robot.stop_layer_skill()` ends one. While
   a behavior runs the layer holds the command stream, so a direct `send_action`
-  raises `RobotBusyError` until it ends. `robot.list_robot_skills()` stays the
-  vendor robot's own skills (none on the simulated G1).
+  raises `RobotBusyError` until it ends. The vendor robot's own skills are
+  `robot.list_onboard_skills()` (none on the simulated G1).
+  `robot.list_robot_skills()`, `robot.run_robot_skill(name)` and
+  `robot.stop_robot_skill()` cover both kinds in one list.
 
 `CARTESIAN` targets are rate-limited: the pose SONIC tracks moves toward the
 commanded one at most `cartesian_max_speed` (0.5 m/s) and `cartesian_max_rate`

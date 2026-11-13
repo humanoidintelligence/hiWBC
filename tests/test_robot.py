@@ -112,7 +112,8 @@ def test_capabilities_from_the_controller():
     assert robot.direct_joints == ("j4", "j5")
     assert robot.simulated and robot.control_period == pytest.approx(0.02)
     assert [s.name for s in robot.list_layer_skills()] == ["stand", "wave"]
-    assert robot.list_robot_skills() == [] and not robot.has_robot_skills   # the vendor's: none
+    assert robot.list_onboard_skills() == [] and not robot.has_onboard_skills   # the vendor's: none
+    assert [s.name for s in robot.list_robot_skills()] == ["stand", "wave"]     # layer + onboard
     assert robot.now() == inner.now()                    # the clock Observation.stamps are on
 
 

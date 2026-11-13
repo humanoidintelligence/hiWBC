@@ -119,7 +119,7 @@ def _step_pose(cur: np.ndarray, goal: np.ndarray, max_d: float,
 class WbcRobot(Layer):
     """A hiRobot :class:`~hirobot.Layer` that balances the robot by running a hiWBC controller.
 
-    Everything it does not change (cameras, audio, ``now()``, the vendor's robot
+    Everything it does not change (cameras, audio, ``now()``, the vendor's onboard
     skills, status) is forwarded to ``inner`` by ``Layer``.
 
     Args:
@@ -292,7 +292,7 @@ class WbcRobot(Layer):
 
     # ------------------------------------------------------------ Robot surface
     # Layer forwards embodiment, simulated, fault, now(), cameras / audio,
-    # get_observation and the vendor's robot skills to inner.
+    # get_observation and the vendor's onboard skills to inner.
     @property
     def direct_joints(self):  # type: ignore[override]
         return self._direct
@@ -324,7 +324,7 @@ class WbcRobot(Layer):
             self.inner.set_gains(kp, kd)
 
     def connect(self) -> None:
-        if self.inner.has_robot_skills:
+        if self.inner.has_onboard_skills:
             raise RuntimeError(
                 f"{type(self.inner).__name__} offers its built-in skills, so the vendor's motion "
                 "service owns the motors; drop builtin_skills from the robot config to run WBC")
@@ -380,8 +380,9 @@ class WbcRobot(Layer):
 
     # ------------------------------------------------------------ layer skills
     # ``stand`` and the controller's behaviors are layer skills (Layer runs
-    # run_layer_skill / stop_layer_skill and the lease); robot skills are the
-    # vendor's, forwarded to inner by Layer.
+    # run_layer_skill / stop_layer_skill and the lease); onboard skills are the
+    # vendor's, forwarded to inner by Layer. hiRobot's list_robot_skills /
+    # run_robot_skill cover both.
     def _layer_skills(self) -> list[RobotSkillSpec]:
         return [STAND_SKILL] + [
             RobotSkillSpec(name=b.name, description=b.description, parameters=dict(b.parameters))

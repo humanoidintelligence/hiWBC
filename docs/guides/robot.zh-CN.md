@@ -123,8 +123,9 @@ hiRobot 的 MuJoCo G1 是真实 G1 的配置加上一层 MuJoCo 覆盖，所以�
 - **Layer skill。** `stand` 和控制器的行为（behavior，例如 BeyondMimic 的 `dance`）由
   `robot.list_layer_skills()` 列出，用 `robot.run_layer_skill(name)` 启动，用
   `robot.stop_layer_skill()` 结束。行为运行期间 layer 持有命令流，所以直接调用 `send_action` 会抛出
-  `RobotBusyError`，直到行为结束。`robot.list_robot_skills()` 仍然是厂商机器人自带的 skill
-  （仿真 G1 上没有）。
+  `RobotBusyError`，直到行为结束。厂商机器人自带的 skill 是 `robot.list_onboard_skills()`
+  （仿真 G1 上没有）。`robot.list_robot_skills()`、`robot.run_robot_skill(name)` 和
+  `robot.stop_robot_skill()` 在同一个列表里查看和运行这两类 skill。
 
 `CARTESIAN` 目标有速率限制：SONIC 跟踪的位姿以最多 `cartesian_max_speed`（0.5 m/s）和
 `cartesian_max_rate`（1.5 rad/s）的速度向命令位姿移动。它从 SONIC 的默认 VR 位姿出发，命令结束时

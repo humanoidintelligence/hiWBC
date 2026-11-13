@@ -476,6 +476,7 @@ through a full setup and lists the options.
 | `get_status().command` | hiRobot's `CommandProgress` for the caller's last `BASE_POSE` / `MOTION_CLIP` / `BASE_VELOCITY` / `MOTION_LATENT` / `CARTESIAN` command: `done` (arrived, clip played out; `None` for modes with no end), `goal`, `clip_time` / `clip_duration` (whole `append` queue). Kept after it ends until the next command; `None` before the first, after `hold()`, and while a layer skill runs ([guide](guides/robot.md#5-status)) |
 | `get_status().extra["wbc"]` | `profile`, `variant`, `mode`, clip progress, `goal`, `arrived`, `ee_targets`, `ticks`, `missed_ticks`, `late_ticks`, `step_ms_max` |
 | `list_layer_skills()`, `run_layer_skill(name, args=None)`, `stop_layer_skill()` | `stand` plus the controller's [behaviors](#behaviors), run by the layer (hiRobot's [layer skills](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/api.md#layers)) |
+| `list_robot_skills()`, `run_robot_skill(name, args=None)`, `stop_robot_skill()` | hiRobot's one list: these layer skills, then the vendor's `list_onboard_skills()` |
 
 Per tick the reference is, in order: a running behavior, a playing clip, the
 last `BASE_VELOCITY` / `MOTION_LATENT` / `CARTESIAN` command if newer than

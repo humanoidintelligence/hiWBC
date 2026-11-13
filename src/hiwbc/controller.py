@@ -176,7 +176,7 @@ class Controller(ABC):
 
     @property
     def behaviors(self) -> list[BehaviorSpec]:
-        """Behaviors this controller ships with; ``WbcRobot`` lists them as robot skills."""
+        """Behaviors this controller ships with; ``WbcRobot`` lists them as layer skills."""
         return []
 
     def start_behavior(self, name: str, **args) -> ReferenceSource:

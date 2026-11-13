@@ -5,6 +5,22 @@ User-facing changes in each hiWBC release, newest first. The format follows
 release may change the API incompatibly; such changes are listed under
 "Removed" or "Changed" and marked **breaking**.
 
+## [0.0.2] - 2026-11-14
+
+Follows hiRobot 0.0.5's skill renames. Needs hiRobot 0.0.5 or later.
+
+### Changed
+
+- **breaking**: needs hiRobot 0.0.5 or later (was 0.0.3). hiRobot 0.0.5
+  renamed its skill methods: `list_robot_skills()` / `run_robot_skill()` /
+  `stop_robot_skill()` now list and run every skill (the wbc layer's `stand`
+  and behaviors, then the vendor's), and the vendor robot's own skills are
+  `list_onboard_skills()`. `WbcRobot` checks `has_onboard_skills` when it
+  connects. The robot guide and the API reference use the new names.
+- The README has a doc index next to the language switch, and the line under
+  the hardware photos is gone.
+- Author order: Zihan Zhuang before Yifei Zhang (`pyproject.toml`, BibTeX).
+
 ## [0.0.1] - 2026-11-12
 
 First public release. Needs hiRobot 0.0.3 or later.
@@ -57,4 +73,5 @@ First public release. Needs hiRobot 0.0.3 or later.
   robot earlier through RoboJuDo); `sonic` matches NVIDIA's C++ deployment and
   `supermimic` matches supermimic_deploy.
 
+[0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

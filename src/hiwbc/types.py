@@ -78,7 +78,7 @@ class JointTarget:
 class BehaviorSpec:
     """A behavior a controller ships with (e.g. a motion baked into its checkpoint).
 
-    ``WbcRobot`` exposes each one as a hiRobot robot skill. ``parameters`` is a JSON
+    ``WbcRobot`` exposes each one as a hiRobot layer skill. ``parameters`` is a JSON
     Schema for the keyword arguments of
     :meth:`~hiwbc.controller.Controller.start_behavior`.
     """

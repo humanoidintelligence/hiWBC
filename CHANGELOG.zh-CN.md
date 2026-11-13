@@ -4,6 +4,19 @@
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。0.1.0 之前任何版本都可能有不兼容的接口改动，
 这类改动列在"移除"或"变更"下，并标 **不兼容**。
 
+## [0.0.2] - 2026-11-14
+
+跟上 hiRobot 0.0.5 的 skill 改名。需要 hiRobot 0.0.5 或更高版本。
+
+### 变更
+
+- **不兼容**：需要 hiRobot 0.0.5 或更高版本（原来是 0.0.3）。hiRobot 0.0.5 改了 skill 方法的名字：
+  `list_robot_skills()` / `run_robot_skill()` / `stop_robot_skill()` 现在列出和运行所有 skill（wbc layer 的
+  `stand` 和行为，再加厂商的），厂商机器人自带的 skill 改叫 `list_onboard_skills()`。`WbcRobot` 连接时检查
+  `has_onboard_skills`。机器人指南和 API 参考改用新名字。
+- README 在语言切换旁边加了文档索引，硬件照片下面那行说明去掉了。
+- 作者顺序：Zihan Zhuang 排在 Yifei Zhang 前面（`pyproject.toml`、BibTeX）。
+
 ## [0.0.1] - 2026-11-12
 
 首个公开版本。需要 hiRobot 0.0.3 或更高版本。
@@ -40,4 +53,5 @@
 - 这个版本只在仿真里跑过。沿用 RoboJuDo 的控制器在 MuJoCo 里和 RoboJuDo 逐 tick 一致（这些 policy
   以前经 RoboJuDo 在真机上跑过）；`sonic` 和 NVIDIA 的 C++ 部署一致，`supermimic` 和 supermimic_deploy 一致。
 
+[0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

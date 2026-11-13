@@ -433,6 +433,7 @@ hiWBC 通过 `hirobot.drivers` entry point 把它注册为 `wbc` layer，所以 
 | `get_status().command` | hiRobot 的 `CommandProgress`，表示调用方最近一条 `BASE_POSE` / `MOTION_CLIP` / `BASE_VELOCITY` / `MOTION_LATENT` / `CARTESIAN` 命令的进度：`done`（已到达、片段已播完；没有终点的模式为 `None`）、`goal`、`clip_time` / `clip_duration`（整个 `append` 队列）。结束后保留到下一条命令；还没发过命令、`hold()` 之后、layer skill 运行期间为 `None`（[指南](guides/robot.zh-CN.md#5-状态)） |
 | `get_status().extra["wbc"]` | `profile`、`variant`、`mode`、片段进度、`goal`、`arrived`、`ee_targets`、`ticks`、`missed_ticks`、`late_ticks`、`step_ms_max` |
 | `list_layer_skills()`, `run_layer_skill(name, args=None)`, `stop_layer_skill()` | `stand` 加上控制器的[行为](#行为)，由 layer 运行（hiRobot 的 [layer skill](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/api.md#layers)） |
+| `list_robot_skills()`, `run_robot_skill(name, args=None)`, `stop_robot_skill()` | hiRobot 的统一列表：上面这些 layer skill，加上厂商的 `list_onboard_skills()` |
 
 每个 tick 的参考依次取：正在运行的行为、正在播放的片段、比 `timeout_s` 更新的上一条 `BASE_VELOCITY` /
 `MOTION_LATENT` / `CARTESIAN` 命令、正在走向的 `BASE_POSE` 目标，否则是 `Controller.stand_reference`。

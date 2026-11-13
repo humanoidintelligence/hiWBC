@@ -28,7 +28,7 @@ from .types import (
     ReferenceSource,
 )
 
-__version__ = "0.0.1"   # the only place the version is written (pyproject reads it)
+__version__ = "0.0.2"   # the only place the version is written (pyproject reads it)
 
 __all__ = [
     "BehaviorSpec",
