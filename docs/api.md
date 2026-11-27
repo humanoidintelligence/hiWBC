@@ -46,6 +46,8 @@ General conventions:
 - [Velocity-command controllers](#velocity-command-controllers)
 - [Motion-tracking controllers](#motion-tracking-controllers)
 - [SuperMimic](#supermimic)
+- [BlinkMimic](#blinkmimic)
+- [XMimic](#xmimic)
 - [SONIC](#sonic)
 - [echo](#echo)
 - [Math helpers](#math-helpers)
@@ -83,8 +85,10 @@ controllers. Controller classes live in their modules:
 | `hiwbc.controllers.protomotions` | `ProtoMotionsTrackerController` |
 | `hiwbc.controllers.kungfubot` | `KungfuBotTrackerController` |
 | `hiwbc.controllers.supermimic` | `SuperMimicController`, `goal_features`, `load_onnx_runner`, `SUPERMIMIC_JOINT_NAMES` |
+| `hiwbc.controllers.blinkmimic` | `BlinkMimicController`, `goal_features`, `load_npz_runner`, `load_pt_runner`, `self_check`, `load_onnx_motion`, `BLINKMIMIC_JOINT_NAMES`, G1 tables (`G1_DEFAULT_POS`, `G1_ACTION_SCALE`, `G1_KP`, `G1_KD`, `G1_EFFORT`) |
 | `hiwbc.controllers.sonic` | `SonicController`, `SonicRobotConfig`, `SonicObsConfig`, `ENCODER_MODE_IDS`, `load_onnx_runner`, `vr_3point`, `VR_3POINT_NAMES` |
 | `hiwbc.controllers.sonic_planner` | `SonicPlanner`, `LocomotionMode`, `velocity_command`, `load_planner_runner` |
+| `hiwbc.configs.blinkmimic.unitree_g1` | `check_onnx_metadata` |
 | `hiwbc.configs.sonic.unitree_g1` | `SONIC_G1`, `SONIC_VARIANTS`, G1 tables (`G1_JOINT_NAMES`, `G1_JOINT_NAMES_MUJOCO`, `G1_DEFAULT_POS`, `G1_ACTION_SCALE`, `G1_KP`, `G1_KD`, ...) |
 | `hiwbc.configs.<controller>.<robot>` | One profile module each (see [Profiles](#profiles)) |
 | `hiwbc.references` | `ClipPlayer`, `require_clip` |
@@ -240,7 +244,7 @@ to build one for a robot.
 
 Built-in names: `echo`, `unitree_loco`, `smooth_loco`, `amo_loco`,
 `asap_tracker`, `twist_tracker`, `beyondmimic_tracker`, `protomotions_tracker`,
-`kungfubot_tracker`, `supermimic`, `sonic`. Every factory passes its keyword arguments
+`kungfubot_tracker`, `supermimic`, `blinkmimic`, `sonic`. Every factory passes its keyword arguments
 straight to the class constructor.
 
 ## Profiles
@@ -281,13 +285,19 @@ subset of the joints):
 | `kungfubot_tracker/unitree_g1` | `default` | `checkpoint_dir`, `providers` | | `joint` |
 | `protomotions_tracker/unitree_g1` | `default` | `checkpoint_dir`, `device` | | `joint` |
 | `supermimic/unitree_g1` | `default` | `checkpoint_dir`, `check_hash`, `providers`, `bound_torque` | | `joint` |
+| `blinkmimic/unitree_g1` | `default` (BlinkMimic `.pt`), `xmimic` (XMimic `.npz`), `onnx` (one motion baked in) | `checkpoint`, `precision` (`xmimic`, default `"bf16"`), `providers` (`onnx`), `bound_torque` (default `True`) | the baked-in motion (`onnx`) | `joint` (`default`, `xmimic`) |
 | `sonic/unitree_g1` | `default`, `low_latency`, `sonic_v1_1` | `checkpoint_dir`, `providers`, `encoder`, `encoder_mode`, `planner` (default `True`), `planner_thread` (default `False`) | | `joint`, `smpl` (with the encoder) |
 | `echo/default` | `default` | `default_pos`, `joint_names`, `kp`, `kd` | | |
 
 `checkpoint_dir` defaults: RoboJuDo's G1 models directory,
 `$HIWBC_ROBOJUDO_MODELS` or `~/.cache/hiwbc/robojudo/g1`, for the
 RoboJuDo-deployed checkpoints; `~/.cache/hiwbc/sonic` for SONIC;
-`~/.cache/hiwbc/supermimic/assets` for SuperMimic.
+`~/.cache/hiwbc/supermimic/assets` for SuperMimic. BlinkMimic takes a file,
+`checkpoint`: `~/.cache/hiwbc/blinkmimic/policy.pt` (`default`),
+`~/.cache/hiwbc/xmimic/policy.npz` (`xmimic`, [XMimic](#xmimic)) or
+`~/.cache/hiwbc/blinkmimic/dance1_subject2.onnx` (`onnx`). Neither project
+publishes weights, so pass `checkpoint=` with the path to a policy or export you
+trained ([BlinkMimic](#blinkmimic)).
 
 ## Motion clips
 
@@ -338,13 +348,14 @@ report progress.
 | `sonic` | `joint`, `smpl` (encoder loaded) | `root_quat`; `joint` also one of the controller's joints, plus `root_pos` for a variant whose `joint` mode reads the root height (none of the released ones) | The encoder window from the current frame, `encoder_mode` set to the clip's space |
 | `twist_tracker` | `joint` | `root_pos`, `root_quat`, one of the controller's joints | The 31-value `mimic_target` of the current frame |
 | `supermimic` | `joint` | `root_pos`, `root_quat`, one of the controller's joints | 10 goal frames from `goal_features` |
+| `blinkmimic` | `joint` (`default`, `xmimic` variants) | `root_pos`, `root_quat`, one of the controller's joints | `goal` (frames `f+1 .. f+10`) and `ref_root_quat` |
 | `kungfubot_tracker` | `joint` (with `future_steps`, `kinematics`, `key_bodies`, as in the profile) | `root_pos`, `root_quat`, one of the controller's joints | All seven terms: 20 future frames, the next step with key points, `anchor_ref_rot` |
 | `protomotions_tracker` | `joint` (with `kinematics`, `track_points`, as in the H2H profile) | `root_pos`, `root_quat`, one of the controller's joints; `state.extra["base_pos"]` each tick | `task_obs` for the hands and head |
 
 `kungfubot_tracker` and `protomotions_tracker` need `hirobot` installed for FK.
 `ClipPlayer` itself does not. The other controllers take no clips.
-`asap_tracker` and `beyondmimic_tracker` have their motion in the checkpoint
-and play it as a [behavior](#behaviors).
+`asap_tracker`, `beyondmimic_tracker` and a `blinkmimic` ONNX export have their
+motion in the checkpoint and play it as a [behavior](#behaviors).
 
 ## Behaviors
 
@@ -371,6 +382,7 @@ reference; the controller keeps feeding the last frame if stepped further.
 |---|---|---|---|
 | `asap_tracker` | `motion_name` (a profile sets it per variant) | `play_speed` in `(0, 2]`, default 1 | When the phase reaches 1 |
 | `beyondmimic_tracker` | `motion_name` (`dance`, `jump`, `violin`, `waltz`) | none | After `motion_frames` ticks |
+| `blinkmimic` (`onnx` variant) | the export's metadata `motion` field, else the file stem | none | After `frames - 1` ticks, `(frames - 1) × 0.02` s |
 
 ## Forward functions
 
@@ -857,6 +869,133 @@ The model takes two inputs:
 - `goal` (680): the 10 goal frames, frame-major.
 
 The action maps to `q0 + action_scale * action`, with no EMA and no clip.
+
+## BlinkMimic
+
+`BlinkMimicController` (`hiwbc.controllers.blinkmimic`), registered as
+`blinkmimic`. It runs policies trained with
+[BlinkMimic](https://github.com/fuyichen0725/blinkmimic) (PyTorch) on the
+29-DoF Unitree G1 in SDK joint order at 50 Hz. BlinkMimic follows SuperMimic's
+method, but its observation and goal differ from [`supermimic`](#supermimic)'s.
+XMimic policies share this interface and run on the same controller
+([XMimic](#xmimic)).
+
+```python
+import hiwbc
+from hiwbc.controllers.blinkmimic import BlinkMimicController, load_pt_runner
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1", checkpoint="model_2700.pt")
+# or by hand:
+from hiwbc.controllers.blinkmimic import G1_ACTION_SCALE, G1_DEFAULT_POS, G1_EFFORT, G1_KD, G1_KP
+
+fwd = load_pt_runner("model_2700.pt", default_pos=G1_DEFAULT_POS, action_scale=G1_ACTION_SCALE)
+ctrl = BlinkMimicController(forward_fn=fwd, default_pos=G1_DEFAULT_POS,
+                            action_scale=G1_ACTION_SCALE, kp=G1_KP, kd=G1_KD, effort=G1_EFFORT)
+```
+
+| Argument | Default | Description |
+|---|---|---|
+| `forward_fn` | `None` | `forward_fn((obs_history (10, 99), goal (730,))) -> (29,)`; `load_pt_runner` (or, for XMimic, `load_npz_runner`) builds one. `None` for a single-motion export, which then only plays its behavior. Give `forward_fn`, `motion_fn` or both |
+| `default_pos` | required | `q0`, SDK joint order |
+| `action_scale` | required | Per joint, `0.25 * effort / kp` |
+| `kp`, `kd` | `None` | Returned with every target |
+| `effort` | `None` | Per-joint torque limit |
+| `bound_torque` | `True` | Re-express the target so `kp * (target - q) - kd * dq` stays within `effort`, as the training actuator clips the torque. Needs `kp`, `kd`, `effort` |
+| `control_dt` | `0.02` | Control period in seconds |
+| `motion_fn` | `None` | A single-motion export, `motion_fn(obs_history (10, 99), time_step) -> dict` with `actions`, `joint_pos` and `next_anchor_quat_w` (`[w, x, y, z]`); `load_onnx_motion` builds one. Enables the behavior `motion_name` |
+| `motion_name` | `None` | Behavior name of the baked motion. Needed with `motion_fn` |
+| `motion_frames` | `None` | Frames in the baked motion (50 Hz), at least 2. Needed with `motion_fn` |
+| `anchor_quat_init` | `None` | The motion's root orientation at frame 0, `[w, x, y, z]`. Needed with `motion_fn` |
+
+Runners (both stateless `forward_fn((obs_history, goal)) -> action`, so
+`runtime="remote"` works):
+
+| Function | Reads | Description |
+|---|---|---|
+| `load_npz_runner(path, *, default_pos, action_scale, precision="bf16")` | XMimic `ckpt_*.npz` | See [XMimic](#xmimic) |
+| `load_pt_runner(path, *, default_pos=None, action_scale=None)` | BlinkMimic `.pt` | Reads the file with torch (`torch` extra), then runs the network in numpy, fp32. The residual uses the checkpoint's own `q0` and scale; `default_pos` / `action_scale`, if given, must agree with them |
+
+`goal_features(root_pos, root_quat, joint_pos, *, frames=10, dt=0.02)` builds
+the `(10, 73)` goal from consecutive 50 Hz reference rows `f, f+1, ..., f+11`
+(fewer near the clip end, at least 2), as the trainers' `Motion.goal` does.
+
+The network normalises both inputs with the checkpoint's running mean and
+variance, encodes the goal, decodes it with the history, and adds the next
+frame's reference joint angles, `(q_ref - q0) / action_scale` (the residual
+stored in the checkpoint). The target is `q0 + action_scale * action`, with no
+EMA and no clip.
+
+`accepts = (MOTION_FRAMES,)`. `frames`:
+
+- `goal` `(10, 73)`: reference frames `f+1 .. f+10` at 50 Hz, the last one
+  repeated at the clip end. Per frame: root displacement (3) and rotation (6D,
+  6) in the heading frame of the current reference frame `f`; root linear and
+  angular velocity in the future frame's own root frame (3 + 3); joint angles
+  (29); joint velocities × 0.1 (29). Velocities are central differences.
+- `ref_root_quat` `(4,)`: the root orientation of reference frame `f`, world
+  frame, `[x, y, z, w]`.
+
+The model takes two inputs:
+
+- `obs_history` (990): 10 ticks of `[q - q0, dq, base ang vel (body frame),
+  projected gravity, previous action, 6D(R^T R_ref)]` (99 each), frame-major,
+  oldest first, current tick included. The 6D term is the first two columns of
+  the rotation, flattened by row. On the first tick after `reset()` all 10 slots
+  hold the current entry.
+- `goal` (730): the 10 goal frames, frame-major.
+
+Because `R_ref` is a world orientation, the clip must be turned to the robot's
+heading at the start; `ClipPlayer` does this.
+
+The `onnx` variant of the profile loads a BlinkMimic `tools/export_onnx.py`
+export with one motion baked in and plays it as a [behavior](#behaviors). It
+needs the `onnx` extra. `load_onnx_motion(path, providers=None)` returns
+`(motion_fn, metadata)`; the export takes `(obs_history, time_step)` and holds
+the goal itself, so it cannot track other clips (`check_clip` raises).
+`check_onnx_metadata(metadata, source)` (`hiwbc.configs.blinkmimic.unitree_g1`)
+raises `ValueError` when the export's joint names, gains, default pose or action
+scale differ from the `G1_*` values (relative tolerance 1e-5), or its history
+length, goal frames, control period, observation names or anchor body (the
+pelvis) differ from this controller's; the profile calls it on load.
+
+The behavior plays the motion as upstream `tools/play_onnx.py` does:
+`time_step` runs `0, 1, ..., frames - 2`, one tick per 50 Hz frame, so the
+behavior lasts `(frames - 1) × 0.02` s. The 6D term uses the export's
+`anchor_quat_w_init` at tick 0 and the previous tick's `next_anchor_quat_w`
+after that. The previous action starts at zero. At the first tick the motion is
+turned, yaw only, onto the robot base's heading. `spec.start_pos` is the
+motion's first pose; `WbcRobot` ramps to it before starting. A tick whose
+forward fails does not advance the motion.
+
+## XMimic
+
+[XMimic](https://github.com/nico-bohlinger/xmimic) (JAX; Bohlinger and Peters,
+[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)) is a rewrite of
+BlinkMimic with the same policy interface. Its policies run on
+[`BlinkMimicController`](#blinkmimic) through the profile's `xmimic` variant;
+the arguments, frames, layout and gains above apply unchanged.
+
+```python
+import hiwbc
+from hiwbc.controllers.blinkmimic import G1_ACTION_SCALE, G1_DEFAULT_POS, load_npz_runner, self_check
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="xmimic", checkpoint="ckpt_5800.npz")
+# or the runner alone:
+fwd = load_npz_runner("ckpt_5800.npz", default_pos=G1_DEFAULT_POS, action_scale=G1_ACTION_SCALE)
+assert self_check(fwd) < 1e-4
+```
+
+`load_npz_runner(path, *, default_pos, action_scale, precision="bf16")` reads an
+XMimic `ckpt_*.npz` with numpy only and returns a stateless
+`forward_fn((obs_history, goal)) -> action`. `precision="bf16"` rounds the
+matmul inputs to bf16 as XMimic's evaluation does; `"fp32"` does not. The
+profile option `precision` passes through.
+
+`self_check(runner, test_vectors=None) -> float` runs a runner on the test
+vectors an XMimic `.npz` holds (or on `(obs_history, goal, action)` you pass)
+and returns the largest action error relative to `max(1, |action|)`. A
+`precision="bf16"` runner matches XMimic's vectors to about 1e-7; an `"fp32"`
+runner differs by up to about 1e-2.
 
 ## SONIC
 

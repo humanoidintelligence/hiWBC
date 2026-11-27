@@ -14,6 +14,8 @@
 | `kungfubot_tracker` | [KungfuBot2 / PBHC](https://github.com/TeleHuman/PBHC) | `kungfubot2/horse_test_43000.onnx` | 23 | anchor 旋转、下一步和未来动作项 |
 | `protomotions_tracker` | [Human2Humanoid](https://github.com/LeCAR-Lab/human2humanoid) 学生模型（ProtoMotions 格式） | `h2h/h2h.pt` | 21 | `task_obs` |
 | `supermimic` | SuperMimic，非官方（[supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy)） | bundle 中的 `policy.onnx` | 29（SDK 顺序） | `goal`，或一个动作片段 |
+| `blinkmimic` | [BlinkMimic](https://github.com/fuyichen0725/blinkmimic) | 你自己训的：`blinkmimic/policy.pt`，或单动作的 `.onnx` 导出文件 | 29（SDK 顺序） | `goal`、`ref_root_quat`，或一个动作片段；`.onnx` 导出文件播放自带的动作，作为行为 |
+| `blinkmimic`（`xmimic` variant） | [XMimic](https://github.com/nico-bohlinger/xmimic) | 你自己训的：`xmimic/policy.npz` | 29（SDK 顺序） | 同 `blinkmimic` |
 
 ## 参考从哪里来
 
@@ -21,8 +23,8 @@
 
 | 来源 | 控制器 | 做法 |
 |---|---|---|
-| 动作片段 | `twist_tracker`、`supermimic`、`kungfubot_tracker`、`protomotions_tracker`（H2H profile）、`sonic` | 把 hiRobot 的 `MotionClip` 包进 `ClipPlayer`；`ctrl.clip_reference(player, state)` 每个 tick 构建参考项 |
-| checkpoint 自带的动作 | `asap_tracker`、`beyondmimic_tracker` | `ctrl.start_behavior(name)` 返回一个每个 tick 构建参考项的 source |
+| 动作片段 | `twist_tracker`、`supermimic`、`blinkmimic`、`kungfubot_tracker`、`protomotions_tracker`（H2H profile）、`sonic` | 把 hiRobot 的 `MotionClip` 包进 `ClipPlayer`；`ctrl.clip_reference(player, state)` 每个 tick 构建参考项 |
+| checkpoint 自带的动作 | `asap_tracker`、`beyondmimic_tracker`、`blinkmimic`（`onnx` variant） | `ctrl.start_behavior(name)` 返回一个每个 tick 构建参考项的 source |
 | 你自己的代码 | 全部 | 自己计算参考项，按下文的名称放进 `frames` |
 
 最快的入门方式是 profile，它用 checkpoint 训练时的取值加载 checkpoint（`checkpoint_dir` 默认为
@@ -88,7 +90,7 @@ action_scale = floats("action_scale")
 print(meta["observation_names"])   # 例如 command,motion_anchor_ori_b,base_ang_vel,...
 ```
 
-**29 自由度 SDK 顺序**（`supermimic`）：`hiwbc.controllers.supermimic` 中的
+**29 自由度 SDK 顺序**（`supermimic`、`blinkmimic`）：`hiwbc.controllers.supermimic` 中的
 `SUPERMIMIC_JOINT_NAMES`，与 Unitree SDK / MuJoCo 顺序相同。
 
 ## `asap_tracker`
@@ -428,11 +430,169 @@ policy 用 [SuperMimic-Reproduced](https://github.com/CuboiLeo/SuperMimic-Reprod
 每个 tick 传入第 `t .. t+9` 帧，接近片段末尾时控制器会重复最后一帧。设 `bound_torque=True`（默认）时，
 目标会被重新表示，使机器人的 PD 力矩保持在 bundle 的力矩上限之内。
 
+## `blinkmimic`
+
+[BlinkMimic](https://github.com/fuyichen0725/blinkmimic)（PyTorch、mjlab）通过一个学到的世界模型训练 G1
+跟踪 policy，这是 SuperMimic 提出的方法。它的观测和 goal 与 `supermimic` 不同：BlinkMimic 的 policy 不能在
+`supermimic` 上跑，反过来也不行。同一个控制器也能跑 XMimic 的 policy，二者接口相同（见 [XMimic](#xmimic)）。
+
+```python
+import hiwbc
+from hiwbc.references import ClipPlayer
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1",
+                  checkpoint="model_2700.pt")                # 你训出的 policy
+player = ClipPlayer(clip, ctrl.control_dt, **ctrl.clip_player_options)   # space 为 "joint"
+ctrl.check_clip(player)                      # 需要 root_pos、root_quat 和关节
+ctrl.reset()
+while not player.done:
+    state = read_state()
+    send(ctrl.step(state, ctrl.clip_reference(player, state)))   # target.kp / kd 已设置
+    player.advance()
+```
+
+通过 `wbc` layer，同一个 profile 播放以 `MOTION_CLIP` 发送的 hiRobot `MotionClip`
+（[机器人指南](robot.zh-CN.md#3-命令)）：
+
+```yaml
+# g1_blinkmimic.yaml
+defaults: [robots/unitree_g1_mujoco_standing]
+layers:
+  - type: wbc
+    profile: blinkmimic/unitree_g1   # checkpoint 默认为 ~/.cache/hiwbc/blinkmimic/policy.pt
+```
+
+```python
+from hirobot import Action, ControlMode, make_robot
+
+robot = make_robot("g1_blinkmimic.yaml")
+robot.connect()
+play = Action(mode=ControlMode.MOTION_CLIP, motion=clip)
+robot.send_action(play)
+while not robot.get_status().command.done:
+    robot.send_action(play)   # 同一个对象：片段接着播放
+robot.hold()
+```
+
+和所有跟踪器一样，机器人应从接近片段第一帧的姿态开始（见上文的**起始姿态**）。
+
+| Variant | Checkpoint（`checkpoint` 默认值） | 需要 | 说明 |
+|---|---|---|---|
+| `default` | BlinkMimic `.pt`（`~/.cache/hiwbc/blinkmimic/policy.pt`） | `torch` extra | torch 只用来读文件；网络在 numpy 中以 fp32 运行 |
+| `xmimic` | XMimic `ckpt_*.npz`（`~/.cache/hiwbc/xmimic/policy.npz`） | numpy | 见 [XMimic](#xmimic) |
+| `onnx` | BlinkMimic `tools/export_onnx.py` 导出的文件，训练进一个动作（`~/.cache/hiwbc/blinkmimic/dance1_subject2.onnx`；传入你的导出文件路径） | `onnx` extra | 把这个动作作为行为播放（`ctrl.behaviors`、`start_behavior`）；不能跟踪其他片段 |
+
+Profile 选项：`checkpoint`（路径）、`precision`（仅 `xmimic`，默认 `"bf16"`）、`providers`（仅 `onnx`，
+onnxruntime 的 execution provider，默认 CPU）、`bound_torque`（默认 `True`：重新表示目标，使 PD 力矩不超过每个
+关节的力矩上限，与训练时的执行器截断一致）。默认姿态、action scale、增益和力矩上限取自 BlinkMimic 的 G1 执行器
+模型（`hiwbc.controllers.blinkmimic` 中的 `G1_*`）。
+
+**获取 checkpoint。** BlinkMimic 不发布训练好的权重，hiWBC 也不附带。用上游仓库训一个，把路径传给
+`checkpoint=`：BlinkMimic 在一块 RTX 4090 上约 3 分钟达到训练目标（据其 README）。
+
+**布局**（G1，29 个关节，SDK 顺序，50 Hz）。模型有两个输入：
+
+- `obs_history`（990）：10 个 tick，按帧排列（frame-major），最旧的在前，包括当前 tick；`reset()` 之后
+  10 个槽位都填当前条目。每个 tick 99 个值：`q - q0`（29）、`dq`（29）、机体坐标系下的基座角速度（3）、
+  投影重力（3）、上一个动作（29），以及参考根姿态相对机器人根的姿态（6：`R^T R_ref` 的前两列）。
+- `goal`（730）：接下来的 10 个参考帧 `f+1 .. f+10`，到片段末尾时重复最后一帧。每帧 73 个值：当前参考帧
+  朝向坐标系下的根位移（3）和旋转（6D，6），该未来帧自身根坐标系下的根线速度和角速度（3 + 3），关节角
+  （29），关节速度 × 0.1（29）。
+
+`frames` 带 `goal` `(10, 73)` 和 `ref_root_quat` `(4,)`，即当前参考根姿态，`[x, y, z, w]`。
+`clip_reference` 构建这两项；goal 中的速度是重采样到 50 Hz 的片段上的中心差分，与训练器的算法一致。
+模型在输出上加上下一帧的参考关节角（一个存在 checkpoint 里的残差），目标为
+`q0 + action_scale * action`，无 EMA，无裁剪。增益按训练器的公式：`kp = armature * (2π · 10 Hz)²`，
+`kd = 2 · 2.0 · armature · (2π · 10 Hz)`（阻尼比 2.0），`action_scale = 0.25 · effort / kp`。
+XMimic 的布局相同。
+
+`obs_history` 中的姿态项比较机器人和参考在世界坐标系中的姿态，所以片段的朝向必须和机器人一致。片段
+播放器在第一个 tick 把片段转到机器人的朝向。在硬件上，IMU 的 yaw 漂移会直接进入这一项。
+
+**`onnx` variant。** BlinkMimic 的 `tools/export_onnx.py` 把一个动作的 goal 固化进计算图，所以导出文件只播放
+这个动作，不能跟踪其他片段：
+
+```python
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="onnx",
+                  checkpoint="dance1_subject2.onnx")   # 你的导出文件
+(spec,) = ctrl.behaviors                 # 以元数据的 motion 字段命名
+ramp_to(spec.start_pos)                  # 动作的第一个姿态，SDK 顺序
+source = ctrl.start_behavior(spec.name)  # 无参数；会重置控制器
+while not source.done:
+    state = read_state()
+    send(ctrl.step(state, source.next(state)))
+```
+
+- 行为以导出文件元数据的 `motion` 字段命名，没有该字段时用文件名（不含扩展名）。它不接收参数，持续
+  `(frames - 1) × 0.02` 秒。
+- 播放方式与上游 `tools/play_onnx.py` 一致：每个 tick 一帧，上一个动作从零开始。第一个 tick 时，动作只绕
+  yaw 转到机器人的朝向。
+- 经 `wbc` layer 时，`robot.run_layer_skill(spec.name)` 启动它，`WbcRobot` 先把机器人缓动到动作的第一个
+  姿态（[机器人指南](robot.zh-CN.md#3-命令)）。
+- 如果导出文件元数据中的关节名、增益、默认姿态或 action scale 与 BlinkMimic 的 G1 值不同（相对容差 1e-5），
+  或者历史长度、goal 帧数、控制周期或观测名与本控制器不同，加载会失败。
+
+**在硬件上。** `blinkmimic` 目前只在仿真中运行过，BlinkMimic 和 XMimic 的 policy 都是。上真机前注意两点：
+
+- 网络在 numpy 中运行。在核数多的机器上，BLAS 线程会让单步耗时出现尖峰；给控制进程设置
+  `OMP_NUM_THREADS=1`。
+- policy 训练时用的 BlinkMimic G1 执行器模型给踝关节和腰部 roll / pitch 的力矩上限是 50 N·m。hiRobot 的 G1
+  body 配置中这些关节是 35 N·m，所以 `bound_torque` 对这些关节截断的力矩高于 body 配置允许的值。
+
+和 BlinkMimic 对拍过，用的是在 LAFAN1 G1 上训的一个 checkpoint：
+
+- **policy 输入**：输入相同时，观测项误差在 3e-7 以内，goal 在 1e-5 以内。hiWBC 自己从 30 fps CSV 构造 goal
+  时，长片段的后段最多差 1e-3。原因是 BlinkMimic 在 float32 时间网格上重采样，hiWBC 用的是 float64。
+- **动作**：`.pt` runner 与 BlinkMimic 的 fp32 policy 误差在 2.4e-6 以内。`onnx` variant 回放 BlinkMimic
+  录下的 6573 拍导出文件 rollout，误差在 4.4e-6 以内。
+- **闭环（训练场景）**：在 BlinkMimic 的 MuJoCo 训练场景里，走路、跳舞、摔倒再起身三个片段都没有摔倒，平均关节误差
+  与 BlinkMimic 自己的评估相差不到 6e-4 rad。
+- **闭环（hiRobot）**：经 `WbcRobot` 在 hiRobot 的自由基座 G1 上，policy 能跑完 20 s 走路和 30 s 跳舞而不摔倒；
+  从默认姿态起步或从片段第一帧起步都一样。
+- **片段结束后**：和其他 tracker 一样，机器人在片段结束后大约一秒内摔倒（见"常见的坑"）。
+
+BlinkMimic 采用 MIT 许可。它训出的 checkpoint 来自 LAFAN1（CC BY-NC-ND 4.0），所以训好的 policy 只能用于
+非商业用途。
+
+## XMimic
+
+[XMimic](https://github.com/nico-bohlinger/xmimic) 是 BlinkMimic 的 JAX 重写（论文：Bohlinger 和 Peters，
+"XMimic and XSoma: Learning Humanoid Motion Tracking and Locomotion in Under a Minute"，2026，
+[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)）。它的 policy 接口和 BlinkMimic 相同，所以
+[`blinkmimic`](#blinkmimic) 控制器通过 `xmimic` variant 运行它；片段、布局、增益和硬件注意事项都一样。
+
+```python
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="xmimic",
+                  checkpoint="ckpt_5800.npz")      # 你训出的 policy
+```
+
+```yaml
+# g1_xmimic.yaml
+defaults: [robots/unitree_g1_mujoco_standing]
+layers:
+  - type: wbc
+    profile: blinkmimic/unitree_g1
+    variant: xmimic          # checkpoint 默认为 ~/.cache/hiwbc/xmimic/policy.npz
+```
+
+- **Checkpoint。** XMimic 的 `ckpt_*.npz`。XMimic 不发布权重；据其 README，一块 H100 上训练 2.5 分钟，四块上
+  0.86 分钟。文件用 numpy 读，不需要 extra。
+- **精度。** `precision="bf16"`（默认）像 XMimic 的评估一样把 matmul 输入舍入到 bf16；`"fp32"` 不舍入。
+  `self_check` 用 `.npz` 里存的测试动作检查 runner（[API](../api.zh-CN.md#xmimic)）。
+- **对拍。** fp32 下 runner 与 XMimic 的 policy 误差在 6.4e-6 以内。bf16 路径没法逐拍对上：同一拍单独算和放进
+  batch 里算，XMimic 自己的 bf16 输出就最多差 0.023。checkpoint 里存的测试动作，hiWBC 复现到 1e-5。在 XMimic
+  的训练场景里，走路、跳舞、摔倒再起身三个片段都没有摔倒，平均关节误差与 XMimic 自己的 rollout 相差不到
+  3e-4 rad；经 `WbcRobot` 能跑完 20 s 走路和 30 s 跳舞而不摔倒。
+
+XMimic 采用 MIT 许可；在 LAFAN1 上训出的 policy 只能用于非商业用途。
+
 ## 常见的坑
 
 - **历史顺序。** ASAP 和 KungfuBot2 的历史按项排列、最新的在前。按帧排列（frame-major）的历史也能
   对上输入大小，但 policy 会在约 1 s 内摔倒。
 - **起始姿态。** 跟踪器从默认姿态而不是动作第一帧开始，可能在第一秒内摔倒。
+- **片段结束后。** 跟踪器没有站立参考，片段或行为结束后 `WbcRobot` 用纯 PD 保持 `default_pos`，这样不会
+  保持平衡，自由基座的机器人大约一秒内就会摔倒。要在当前片段结束前发下一个片段。
 - **动作时钟漂移。** 使用你自己的 BeyondMimic 参考时，`time_step` 和参考必须对应同一帧；每个 tick
   两者各推进一次。行为会替你做这件事。
 - **速度平滑。** 默认情况下 `ClipPlayer` 以 50 Hz 差分求速度，不做平滑。

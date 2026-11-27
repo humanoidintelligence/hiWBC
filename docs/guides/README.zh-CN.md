@@ -10,7 +10,7 @@
 |---|---|---|
 | [快速开始](getting_started.zh-CN.md) | 全部 | 控制循环、关节顺序、前向函数、首次上电 |
 | [速度命令行走](locomotion.zh-CN.md) | `unitree_loco`、`smooth_loco`、`amo_loco` | `VELOCITY`：摇杆式的 `[vx, vy, wyaw]`（AMO 还有高度和躯干姿态） |
-| [参考动作跟踪](motion_tracking.zh-CN.md) | `asap_tracker`、`twist_tracker`、`beyondmimic_tracker`、`kungfubot_tracker`、`protomotions_tracker`、`supermimic` | `MOTION_FRAMES`：本控制周期的参考项、一个动作片段，或 checkpoint 自带的动作（一个行为（behavior）） |
+| [参考动作跟踪](motion_tracking.zh-CN.md) | `asap_tracker`、`twist_tracker`、`beyondmimic_tracker`、`kungfubot_tracker`、`protomotions_tracker`、`supermimic`、`blinkmimic`（BlinkMimic、XMimic） | `MOTION_FRAMES`：本控制周期的参考项、一个动作片段，或 checkpoint 自带的动作（一个行为（behavior）） |
 | [SONIC](sonic.zh-CN.md) | `sonic` | `LATENT`（一个动作 token）、`MOTION_FRAMES`、一个动作片段，或通过其行走 planner 的 `VELOCITY` |
 | [作为 hiRobot 机器人运行](robot.zh-CN.md) | 全部 | 通过 `wbc` layer 发送 hiRobot `Action`：速度、走到目标位姿、手部位姿、动作片段；故障、状态、远程推理 |
 

@@ -366,7 +366,7 @@ def test_wbc_layer_uses_only_the_public_api_of_inner():
     assert {"send_action", "get_observation"} <= used
 
 
-G1_MJCF = os.path.expanduser("~/.cache/hirobot/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.xml")
+G1_MJCF = os.path.expanduser("~/.cache/hirobot/assets/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.xml")
 
 
 @pytest.mark.skipif(not os.path.isfile(G1_MJCF), reason="unitree_ros G1 MJCF not present")

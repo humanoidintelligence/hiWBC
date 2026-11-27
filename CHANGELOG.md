@@ -5,6 +5,41 @@ User-facing changes in each hiWBC release, newest first. The format follows
 release may change the API incompatibly; such changes are listed under
 "Removed" or "Changed" and marked **breaking**.
 
+## [0.0.3] - 2026-11-27
+
+The `blinkmimic` controller runs BlinkMimic and XMimic tracking policies on the
+G1. Needs hiRobot 0.0.7 or later and Python 3.10 or later.
+
+### Changed
+
+- **breaking**: needs Python 3.10 or later (was 3.9).
+- **breaking**: needs hiRobot 0.0.7 or later (was 0.0.5). hiRobot 0.0.7 moved
+  the G1 model to `~/.cache/hirobot/assets/unitree_ros/...` (`hirobot assets
+  fetch unitree_g1`); the default `mjcf` of the `kungfubot_tracker` and
+  `protomotions_tracker` profiles now points there. Pass `mjcf=` to use a
+  model elsewhere.
+
+### Added
+
+- **`blinkmimic` controller** (profile `blinkmimic/unitree_g1`): runs
+  [BlinkMimic](https://github.com/fuyichen0725/blinkmimic) (PyTorch) policies
+  on the 29-DoF Unitree G1. It follows SuperMimic's method but is not
+  compatible with `supermimic`. Variants: `default` (BlinkMimic `.pt`, read
+  with the `torch` extra) and `onnx` (BlinkMimic's single-motion ONNX export,
+  played as a behavior named after the export's motion, needs the `onnx`
+  extra; loading fails if its metadata differs from BlinkMimic's G1 values).
+  Takes `goal` and `ref_root_quat` frames or a `joint` motion clip
+  (`ClipPlayer`, `MOTION_CLIP`).
+- **XMimic policies** through the `xmimic` variant of `blinkmimic/unitree_g1`:
+  [XMimic](https://github.com/nico-bohlinger/xmimic) (JAX,
+  [arXiv:2611.20452](https://arxiv.org/abs/2611.20452)) is a rewrite of
+  BlinkMimic with the same policy interface. Reads its `ckpt_*.npz` with numpy
+  only, bf16 matmuls by default (`precision`); `self_check` compares a runner
+  with the test actions stored in the checkpoint.
+- Neither BlinkMimic nor XMimic publishes weights: train one with the upstream
+  repository and point `checkpoint=` at it. Policies trained on LAFAN1 are for
+  non-commercial use only. Run in simulation only.
+
 ## [0.0.2] - 2026-11-14
 
 Follows hiRobot 0.0.5's skill renames. Needs hiRobot 0.0.5 or later.
@@ -73,5 +108,6 @@ First public release. Needs hiRobot 0.0.3 or later.
   robot earlier through RoboJuDo); `sonic` matches NVIDIA's C++ deployment and
   `supermimic` matches supermimic_deploy.
 
+[0.0.3]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

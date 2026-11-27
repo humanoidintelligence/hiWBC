@@ -14,6 +14,7 @@
 <tr><td colspan="5" align="center"><img src="assets/real/photo_1.png" width="172" height="104" alt="Humanoid robots performing whole-body motions (1)"><img src="assets/real/photo_2.png" width="172" height="104" alt="Humanoid robots performing whole-body motions (2)"><img src="assets/real/photo_3.png" width="165" height="104" alt="Humanoid robots performing whole-body motions (3)"><img src="assets/real/photo_4.png" width="157" height="104" alt="Humanoid robots performing whole-body motions (4)"><img src="assets/real/photo_5.png" width="92" height="104" alt="Humanoid robots performing whole-body motions (5)"></td></tr>
 <tr><td align="center"><a href="docs/guides/locomotion.md#unitree_loco-unitree_rl_gym-gait"><img src="assets/controllers/unitree_loco.gif" width="130" alt="unitree_loco"></a><br><sub>unitree_loco</sub></td><td align="center"><a href="docs/guides/locomotion.md#smooth_loco"><img src="assets/controllers/smooth_loco.gif" width="130" alt="smooth_loco"></a><br><sub>smooth_loco</sub></td><td align="center"><a href="docs/guides/locomotion.md#amo_loco"><img src="assets/controllers/amo_loco.gif" width="130" alt="amo_loco"></a><br><sub>amo_loco</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#asap_tracker"><img src="assets/controllers/asap_tracker.gif" width="130" alt="asap_tracker"></a><br><sub>asap_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#beyondmimic_tracker"><img src="assets/controllers/beyondmimic_tracker.gif" width="130" alt="beyondmimic_tracker"></a><br><sub>beyondmimic_tracker</sub></td></tr>
 <tr><td align="center"><a href="docs/guides/motion_tracking.md#twist_tracker"><img src="assets/controllers/twist_tracker.gif" width="130" alt="twist_tracker"></a><br><sub>twist_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#kungfubot_tracker"><img src="assets/controllers/kungfubot_tracker.gif" width="130" alt="kungfubot_tracker"></a><br><sub>kungfubot_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#protomotions_tracker-h2h"><img src="assets/controllers/protomotions_tracker.gif" width="130" alt="protomotions_tracker"></a><br><sub>protomotions_tracker</sub></td><td align="center"><a href="docs/guides/sonic.md#4-track-a-reference-motion-joint-mode"><img src="assets/controllers/sonic.gif" width="130" alt="sonic"></a><br><sub>sonic</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#supermimic"><img src="assets/controllers/supermimic.gif" width="130" alt="supermimic"></a><br><sub>supermimic</sub></td></tr>
+<tr><td align="center"><a href="docs/guides/motion_tracking.md#blinkmimic"><img src="assets/controllers/blinkmimic.gif" width="130" alt="blinkmimic"></a><br><sub>blinkmimic</sub></td><td align="center"><a href="docs/guides/motion_tracking.md#xmimic"><img src="assets/controllers/xmimic.gif" width="130" alt="xmimic"></a><br><sub>xmimic</sub></td></tr>
 </table>
 
 <!-- controller-gallery:end -->
@@ -109,8 +110,8 @@ control loop.
 > `amo_loco`, `asap_tracker`, `twist_tracker`, `beyondmimic_tracker`, `kungfubot_tracker`,
 > `protomotions_tracker`): we tested them on a real robot earlier, and for this release
 > compared each hiWBC controller with RoboJuDo tick for tick in MuJoCo. This release
-> itself, including `sonic`, `supermimic` and the `wbc` layer, has been run in
-> simulation only.
+> itself, including `sonic`, `supermimic`, `blinkmimic` and the `wbc` layer, has
+> been run in simulation only.
 > Debug in simulation until it works, then move to the real robot step by step:
 > read-only first, then the robot hung on a gantry at low gains, with an e-stop
 > within reach and nobody inside the robot's reach. On hardware the `wbc` layer
@@ -144,6 +145,8 @@ robot with garbage, so the tests pin every layout.
 | `protomotions_tracker` | [ProtoMotions](https://github.com/NVlabs/ProtoMotions) | `task_obs` |
 | `kungfubot_tracker` | [KungfuBot / PBHC](https://github.com/TeleHuman/PBHC) | `anchor_ref_rot`, `next_step_ref_motion`, `future_motion_*`; the model takes three inputs, so `observe` returns a tuple |
 | `supermimic` | SuperMimic, unofficial reproduction ([supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy), Unitree G1) | `goal`: `(T, 68)` future goal frames from `goal_features`; `SuperMimicController.from_bundle(assets_dir)` loads the bundle's `config.json` and `policy.onnx` |
+| `blinkmimic` | [BlinkMimic](https://github.com/fuyichen0725/blinkmimic) (Unitree G1; `.pt`, or an `.onnx` export with one baked-in motion) | `goal`: `(10, 73)` next reference frames, and `ref_root_quat`; BlinkMimic publishes no weights, so you train the checkpoint |
+| `blinkmimic` (`xmimic` variant) | [XMimic](https://github.com/nico-bohlinger/xmimic) (Unitree G1; `.npz`), a JAX rewrite of BlinkMimic | as `blinkmimic`; XMimic publishes no weights either |
 
 **Universal motion token** — `ReferenceKind.LATENT` or `ReferenceKind.MOTION_FRAMES`:
 
@@ -164,8 +167,9 @@ command and SONIC tracks it.
 
 The trackers consume reference terms for the current tick. `ClipPlayer`
 (`hiwbc.references`) turns a hiRobot `MotionClip` into those terms for `sonic`,
-`twist_tracker` and `supermimic`; ASAP and BeyondMimic checkpoints play the
-motion trained into them as a behavior. `kungfubot_tracker` and
+`twist_tracker`, `supermimic` and `blinkmimic`; ASAP and BeyondMimic
+checkpoints, and BlinkMimic's ONNX export, play the motion trained into them as
+a behavior. `kungfubot_tracker` and
 `protomotions_tracker` also take clips: their profiles compute the terms that
 need forward kinematics (KungfuBot's key-body positions, H2H's imitation
 observation) with hiRobot's kinematics.
@@ -297,7 +301,7 @@ mode, faults, status and remote inference.
 
 We tested the policies RoboJuDo deploys on a real robot earlier, and their hiWBC
 controllers match RoboJuDo tick for tick in MuJoCo; this release, including
-`sonic`, `supermimic` and the `wbc` layer, has been run in simulation only. The
+`sonic`, `supermimic`, `blinkmimic` and the `wbc` layer, has been run in simulation only. The
 same `layers:` entry goes into
 a real robot's hiRobot config, set up per hiRobot's
 [setup guide](https://github.com/humanoidintelligence/hiRobot/tree/main/docs/setup).
@@ -373,6 +377,7 @@ hiWBC/
 │       ├── protomotions.py  # protomotions_tracker
 │       ├── kungfubot.py     # kungfubot_tracker
 │       ├── supermimic.py    # supermimic: SuperMimic tracker (unofficial reproduction)
+│       ├── blinkmimic.py    # blinkmimic: BlinkMimic / XMimic tracker
 │       ├── sonic.py         # sonic: SONIC encoder → motion token → decoder (robot-agnostic)
 │       └── sonic_planner.py # SONIC's locomotion planner: velocity command -> reference motion
 ├── tests/                   # pytest suite; policies are stubbed, no GPU or weights needed
@@ -452,7 +457,13 @@ The `sonic` controller follows the C++ deployment in NVIDIA's
 (Apache-2.0). hiWBC ships no SONIC weights; the released checkpoints are under
 the NVIDIA Open Model License. The `supermimic` controller follows the
 inference code of [supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy)
-(MIT); hiWBC ships no SuperMimic weights either. The policies themselves come
+(MIT); hiWBC ships no SuperMimic weights either. The `blinkmimic` controller
+follows the policy code of [BlinkMimic](https://github.com/fuyichen0725/blinkmimic)
+(MIT); its `xmimic` variant follows [XMimic](https://github.com/nico-bohlinger/xmimic)
+(MIT; Bohlinger and Peters, "XMimic and XSoma: Learning Humanoid Motion Tracking
+and Locomotion in Under a Minute", [arXiv:2611.20452](https://arxiv.org/abs/2611.20452)).
+Neither publishes weights, and policies trained on LAFAN1 (CC BY-NC-ND 4.0) are for
+non-commercial use only. The policies themselves come
 from the projects linked in [Supported controllers](#supported-controllers).
 
 ## License

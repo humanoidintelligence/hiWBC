@@ -4,6 +4,31 @@
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。0.1.0 之前任何版本都可能有不兼容的接口改动，
 这类改动列在"移除"或"变更"下，并标 **不兼容**。
 
+## [0.0.3] - 2026-11-27
+
+`blinkmimic` 控制器在 G1 上运行 BlinkMimic 和 XMimic 的跟踪 policy。需要 hiRobot 0.0.7 或更高版本，以及 Python 3.10 或更高版本。
+
+### 变更
+
+- **不兼容**：需要 Python 3.10 或更高版本（原为 3.9）。
+- **不兼容**：需要 hiRobot 0.0.7 或更高版本（原为 0.0.5）。hiRobot 0.0.7 把 G1 模型移到了
+  `~/.cache/hirobot/assets/unitree_ros/...`（`hirobot assets fetch unitree_g1`）；`kungfubot_tracker` 和
+  `protomotions_tracker` profile 的默认 `mjcf` 现在指向那里。模型放在别处时传 `mjcf=`。
+
+### 新增
+
+- **`blinkmimic` 控制器**（profile `blinkmimic/unitree_g1`）：在 29 自由度 Unitree G1 上运行
+  [BlinkMimic](https://github.com/fuyichen0725/blinkmimic)（PyTorch）的 policy。沿用 SuperMimic 的方法，但与
+  `supermimic` 不兼容。variant：`default`（BlinkMimic `.pt`，需要 `torch` extra 读文件）和 `onnx`（BlinkMimic
+  导出的单动作 ONNX，作为以导出动作命名的行为播放，需要 `onnx` extra；元数据与 BlinkMimic 的 G1 值不同时加载失败）。
+  接收 `goal` 和 `ref_root_quat` 帧，或一个 `joint` 动作片段（`ClipPlayer`、`MOTION_CLIP`）。
+- **XMimic policy**，经 `blinkmimic/unitree_g1` 的 `xmimic` variant：
+  [XMimic](https://github.com/nico-bohlinger/xmimic)（JAX，[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)）
+  是 BlinkMimic 的重写，policy 接口相同。只用 numpy 读它的 `ckpt_*.npz`，默认 bf16 matmul（`precision`）；
+  `self_check` 用 checkpoint 里存的测试动作检查 runner。
+- BlinkMimic 和 XMimic 都不发布权重：用上游仓库训一个，把 `checkpoint=` 指向它。在 LAFAN1 上训出的 policy
+  只能用于非商业用途。只在仿真中运行过。
+
 ## [0.0.2] - 2026-11-14
 
 跟上 hiRobot 0.0.5 的 skill 改名。需要 hiRobot 0.0.5 或更高版本。
@@ -53,5 +78,6 @@
 - 这个版本只在仿真里跑过。沿用 RoboJuDo 的控制器在 MuJoCo 里和 RoboJuDo 逐 tick 一致（这些 policy
   以前经 RoboJuDo 在真机上跑过）；`sonic` 和 NVIDIA 的 C++ 部署一致，`supermimic` 和 supermimic_deploy 一致。
 
+[0.0.3]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

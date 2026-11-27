@@ -1,0 +1,54 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "ruff>=0.4"
+      # Rules are in pyproject.toml ([tool.ruff]).
+      - run: ruff check src tests
+
+  test:
+    name: test (py${{ matrix.python }}, hiRobot ${{ matrix.hirobot }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # hiRobot is not on PyPI; install it from its public repository.
+        # The oldest tag is the lower bound in pyproject.toml; main is the latest release.
+        # Every Python from requires-python (>=3.10) up.
+        python: ["3.10", "3.11", "3.12", "3.13"]
+        hirobot: ["v0.0.7", "main"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # No torch, onnxruntime, GPU or weights: the tests inject stub forward functions
+      # and skip the few that need a real checkpoint.
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install "hirobot @ git+https://github.com/humanoidintelligence/hiRobot.git@${{ matrix.hirobot }}"
+          pip install -e ".[dev]"
+      - run: pip list
+      - run: python -m pytest -q -rs

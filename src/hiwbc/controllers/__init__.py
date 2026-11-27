@@ -4,6 +4,7 @@ from . import (  # noqa: F401  (import for side-effect registration)
     amo,
     asap,
     beyondmimic,
+    blinkmimic,
     echo,
     kungfubot,
     protomotions,

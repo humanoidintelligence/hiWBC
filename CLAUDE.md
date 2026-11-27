@@ -34,7 +34,7 @@ pip install -e '.[dev]'     # + pytest, ruff
 python -m pytest                                  # full suite (no GPU/weights needed; needs hirobot)
 python -m pytest tests/test_tracking.py           # one file
 python -m pytest tests/test_asap.py::test_name    # one test
-ruff check src tests                              # lint (line-length 100, target py39)
+ruff check src tests                              # lint (line-length 100, target py310)
 ```
 
 The `echo` controller needs no weights, torch, or GPU — use it to exercise the
@@ -97,6 +97,16 @@ Core pieces:
     history laid out **term-major** (all 10 `q - q0` frames, then all 10 `dq`, ...) and
     a 680-d goal (10 future 68-d frames from `goal_features`). Verified tick-for-tick
     against that repo in MuJoCo.
+  - `blinkmimic` (`blinkmimic.py`) — policies from BlinkMimic (`fuyichen0725/blinkmimic`,
+    PyTorch) and XMimic (`nico-bohlinger/xmimic`, its JAX rewrite), which share one policy
+    interface; not compatible with `supermimic`. Two inputs: a 990-d proprio history laid
+    out **frame-major**, oldest first (10 × 99: `q - q0`, `dq`, ang vel, gravity, previous
+    action, 6D of `R^T R_ref`) and a 730-d goal (frames f+1..f+10, 73 each). The model adds
+    the next frame's reference joints (residual in the checkpoint). Profile variants:
+    `default` (`.pt`, `load_pt_runner`), `xmimic` (`.npz`, `load_npz_runner`, bf16),
+    `onnx` (`load_onnx_motion`: a single-motion export taking `(obs_history, time_step)`,
+    injected as `motion_fn` and played as a behavior like upstream `play_onnx.py`; its
+    metadata must match the G1 values). Neither upstream publishes weights.
 
 The locomotion and tracking controllers replicate RoboJuDo's observation layouts and
 were checked tick for tick against RoboJuDo in its MuJoCo env (obs within ~1e-5). `kungfubot` and `amo_loco` are multi-input: `observe` may return a
@@ -137,13 +147,14 @@ joint order is IsaacLab. Quaternions in hiWBC are `[x, y, z, w]`; the deployment
 
 ## Status
 
-All 11 controllers have tests and have been run with their real checkpoints in MuJoCo:
+All 12 controllers have tests and have been run with their real checkpoints in MuJoCo:
 the RoboJuDo family against RoboJuDo, `sonic` against a transliteration of NVIDIA's C++
-deployment, `supermimic` against supermimic_deploy. Every
+deployment, `supermimic` against supermimic_deploy, `blinkmimic` against XMimic and
+BlinkMimic (checkpoints trained locally; fp32 action within 1e-5). Every
 controller has a profile. `WbcRobot` runs them through hiRobot's `make_robot`; SONIC
 walks, goes to a pose and tracks hand targets in MuJoCo through it, also with remote
 inference. The RoboJuDo-deployed policies were tested on a real robot earlier (not
-through this release); `sonic`, `supermimic` and `WbcRobot` have run in simulation
+through this release); `sonic`, `supermimic`, `blinkmimic` and `WbcRobot` have run in simulation
 only. Known gaps: SONIC hand targets overshoot (about
 1.3x, 5–12 cm error) and it walks slower than commanded (0.43 for 0.5 m/s).
 

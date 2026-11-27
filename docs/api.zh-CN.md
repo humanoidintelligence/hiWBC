@@ -38,6 +38,8 @@ hiWBC 计算 `(ControllerState, Reference) -> JointTarget`。控制器不做任�
 - [速度命令控制器](#速度命令控制器)
 - [动作跟踪控制器](#动作跟踪控制器)
 - [SuperMimic](#supermimic)
+- [BlinkMimic](#blinkmimic)
+- [XMimic](#xmimic)
 - [SONIC](#sonic)
 - [echo](#echo)
 - [数学工具](#数学工具)
@@ -74,8 +76,10 @@ hiWBC 计算 `(ControllerState, Reference) -> JointTarget`。控制器不做任�
 | `hiwbc.controllers.protomotions` | `ProtoMotionsTrackerController` |
 | `hiwbc.controllers.kungfubot` | `KungfuBotTrackerController` |
 | `hiwbc.controllers.supermimic` | `SuperMimicController`, `goal_features`, `load_onnx_runner`, `SUPERMIMIC_JOINT_NAMES` |
+| `hiwbc.controllers.blinkmimic` | `BlinkMimicController`, `goal_features`, `load_npz_runner`, `load_pt_runner`, `self_check`, `load_onnx_motion`, `BLINKMIMIC_JOINT_NAMES`, G1 表（`G1_DEFAULT_POS`、`G1_ACTION_SCALE`、`G1_KP`、`G1_KD`、`G1_EFFORT`） |
 | `hiwbc.controllers.sonic` | `SonicController`, `SonicRobotConfig`, `SonicObsConfig`, `ENCODER_MODE_IDS`, `load_onnx_runner`, `vr_3point`, `VR_3POINT_NAMES` |
 | `hiwbc.controllers.sonic_planner` | `SonicPlanner`, `LocomotionMode`, `velocity_command`, `load_planner_runner` |
+| `hiwbc.configs.blinkmimic.unitree_g1` | `check_onnx_metadata` |
 | `hiwbc.configs.sonic.unitree_g1` | `SONIC_G1`, `SONIC_VARIANTS`，G1 表（`G1_JOINT_NAMES`、`G1_JOINT_NAMES_MUJOCO`、`G1_DEFAULT_POS`、`G1_ACTION_SCALE`、`G1_KP`、`G1_KD`……） |
 | `hiwbc.configs.<controller>.<robot>` | 每个 profile 一个模块（见 [Profile](#profile)） |
 | `hiwbc.references` | `ClipPlayer`, `require_clip` |
@@ -226,7 +230,7 @@ Controller(*, num_actions, default_pos, action_scale=1.0, action_clip=None, acti
 | `available_controllers() -> list[str]` | 排好序的已注册名字 |
 
 内置名字：`echo`、`unitree_loco`、`smooth_loco`、`amo_loco`、`asap_tracker`、`twist_tracker`、
-`beyondmimic_tracker`、`protomotions_tracker`、`kungfubot_tracker`、`supermimic`、`sonic`。每个工厂函数都把
+`beyondmimic_tracker`、`protomotions_tracker`、`kungfubot_tracker`、`supermimic`、`blinkmimic`、`sonic`。每个工厂函数都把
 关键字参数原样传给类的构造函数。
 
 ## Profile
@@ -265,12 +269,16 @@ ctrl = hiwbc.load("beyondmimic_tracker/unitree_g1", variant="jump_wose",
 | `kungfubot_tracker/unitree_g1` | `default` | `checkpoint_dir`, `providers` | | `joint` |
 | `protomotions_tracker/unitree_g1` | `default` | `checkpoint_dir`, `device` | | `joint` |
 | `supermimic/unitree_g1` | `default` | `checkpoint_dir`, `check_hash`, `providers`, `bound_torque` | | `joint` |
+| `blinkmimic/unitree_g1` | `default`（BlinkMimic `.pt`），`xmimic`（XMimic `.npz`），`onnx`（训练进一个动作） | `checkpoint`、`precision`（`xmimic`，默认 `"bf16"`）、`providers`（`onnx`）、`bound_torque`（默认 `True`） | 训练进的动作（`onnx`） | `joint`（`default`、`xmimic`） |
 | `sonic/unitree_g1` | `default`, `low_latency`, `sonic_v1_1` | `checkpoint_dir`、`providers`、`encoder`、`encoder_mode`、`planner`（默认 `True`）、`planner_thread`（默认 `False`） | | `joint`、`smpl`（需加载编码器） |
 | `echo/default` | `default` | `default_pos`, `joint_names`, `kp`, `kd` | | |
 
 `checkpoint_dir` 的默认值：RoboJuDo 部署的 checkpoint 用 RoboJuDo 的 G1 模型目录，即
 `$HIWBC_ROBOJUDO_MODELS` 或 `~/.cache/hiwbc/robojudo/g1`；SONIC 用 `~/.cache/hiwbc/sonic`；SuperMimic 用
-`~/.cache/hiwbc/supermimic/assets`。
+`~/.cache/hiwbc/supermimic/assets`。BlinkMimic 接收一个文件 `checkpoint`：`~/.cache/hiwbc/blinkmimic/policy.pt`
+（`default`）、`~/.cache/hiwbc/xmimic/policy.npz`（`xmimic`，[XMimic](#xmimic)）或 `~/.cache/hiwbc/blinkmimic/dance1_subject2.onnx`
+（`onnx`）。两个项目都不发布权重，所以要用 `checkpoint=` 传入你自己训的 policy 或导出文件的路径
+（[BlinkMimic](#blinkmimic)）。
 
 ## 动作片段
 
@@ -313,11 +321,12 @@ while not player.done:
 | `sonic` | `joint`、`smpl`（已加载编码器） | `root_quat`；`joint` 还需要控制器的至少一个关节，对于 `joint` 模式读取根高度的 variant 还需要 `root_pos`（已发布的 variant 都不读） | 从当前帧开始的编码器窗口，`encoder_mode` 设为片段的空间 |
 | `twist_tracker` | `joint` | `root_pos`、`root_quat`、控制器的至少一个关节 | 当前帧的 31 维 `mimic_target` |
 | `supermimic` | `joint` | `root_pos`、`root_quat`、控制器的至少一个关节 | 由 `goal_features` 得到的 10 个目标帧 |
+| `blinkmimic` | `joint`（`default`、`xmimic` variant） | `root_pos`、`root_quat`、控制器的至少一个关节 | `goal`（第 `f+1 .. f+10` 帧）和 `ref_root_quat` |
 | `kungfubot_tracker` | `joint`（带 `future_steps`、`kinematics`、`key_bodies`，与 profile 中一致） | `root_pos`、`root_quat`、控制器的至少一个关节 | 全部七项：20 个未来帧、带关键点的下一步、`anchor_ref_rot` |
 | `protomotions_tracker` | `joint`（带 `kinematics`、`track_points`，与 H2H profile 中一致） | `root_pos`、`root_quat`、控制器的至少一个关节；每个 tick 的 `state.extra["base_pos"]` | 双手和头部的 `task_obs` |
 
 `kungfubot_tracker` 和 `protomotions_tracker` 需要安装 `hirobot` 来做 FK，`ClipPlayer` 本身不需要。其他控制器
-不接收片段。`asap_tracker` 和 `beyondmimic_tracker` 的动作在 checkpoint 里，以[行为](#行为)的方式播放。
+不接收片段。`asap_tracker`、`beyondmimic_tracker` 和 `blinkmimic` 的 ONNX 导出文件的动作在 checkpoint 里，以[行为](#行为)的方式播放。
 
 ## 行为
 
@@ -341,6 +350,7 @@ while not source.done:
 |---|---|---|---|
 | `asap_tracker` | `motion_name`（profile 按 variant 设置） | `play_speed`，取值 `(0, 2]`，默认 1 | 相位到达 1 时 |
 | `beyondmimic_tracker` | `motion_name`（`dance`、`jump`、`violin`、`waltz`） | 无 | `motion_frames` 个 tick 之后 |
+| `blinkmimic`（`onnx` variant） | 导出文件元数据的 `motion` 字段，没有则用文件名（不含扩展名） | 无 | `frames - 1` 个 tick 之后，即 `(frames - 1) × 0.02` 秒 |
 
 ## 前向函数
 
@@ -758,6 +768,107 @@ root_ang_vel_w, root_z, default_pos)` 从 50 Hz 片段计算 68 维目标：`q -
 - `goal`（680）：10 个目标帧，按帧优先（frame-major）排列。
 
 动作映射为 `q0 + action_scale * action`，无 EMA，无裁剪。
+
+## BlinkMimic
+
+`BlinkMimicController`（`hiwbc.controllers.blinkmimic`），注册名为 `blinkmimic`。它在 29 自由度 Unitree G1 上
+（SDK 关节顺序，50 Hz）运行用 [BlinkMimic](https://github.com/fuyichen0725/blinkmimic)（PyTorch）训出的 policy。
+BlinkMimic 沿用 SuperMimic 的方法，但观测和 goal 与 [`supermimic`](#supermimic) 不同。XMimic 的 policy 接口相同，
+也在这个控制器上运行（见 [XMimic](#xmimic)）。
+
+```python
+import hiwbc
+from hiwbc.controllers.blinkmimic import BlinkMimicController, load_pt_runner
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1", checkpoint="model_2700.pt")
+# 或手动构建：
+from hiwbc.controllers.blinkmimic import G1_ACTION_SCALE, G1_DEFAULT_POS, G1_EFFORT, G1_KD, G1_KP
+
+fwd = load_pt_runner("model_2700.pt", default_pos=G1_DEFAULT_POS, action_scale=G1_ACTION_SCALE)
+ctrl = BlinkMimicController(forward_fn=fwd, default_pos=G1_DEFAULT_POS,
+                            action_scale=G1_ACTION_SCALE, kp=G1_KP, kd=G1_KD, effort=G1_EFFORT)
+```
+
+| 参数 | 默认值 | 说明 |
+|---|---|---|
+| `forward_fn` | `None` | `forward_fn((obs_history (10, 99), goal (730,))) -> (29,)`；可用 `load_pt_runner`（XMimic 用 `load_npz_runner`）构建。单动作导出文件用 `None`，此时只播放它的行为。`forward_fn`、`motion_fn` 至少给一个 |
+| `default_pos` | 必填 | `q0`，SDK 关节顺序 |
+| `action_scale` | 必填 | 每个关节一个，`0.25 * effort / kp` |
+| `kp`, `kd` | `None` | 随每个目标一起返回 |
+| `effort` | `None` | 每个关节的力矩上限 |
+| `bound_torque` | `True` | 重新表达目标，使 `kp * (target - q) - kd * dq` 不超过 `effort`，与训练时执行器截断力矩一致。需要 `kp`、`kd`、`effort` |
+| `control_dt` | `0.02` | 控制周期，单位秒 |
+| `motion_fn` | `None` | 单动作导出文件，`motion_fn(obs_history (10, 99), time_step) -> dict`，含 `actions`、`joint_pos` 和 `next_anchor_quat_w`（`[w, x, y, z]`）；可用 `load_onnx_motion` 构建。启用行为 `motion_name` |
+| `motion_name` | `None` | 训练进的动作的行为名。有 `motion_fn` 时必填 |
+| `motion_frames` | `None` | 训练进的动作的帧数（50 Hz），至少 2。有 `motion_fn` 时必填 |
+| `anchor_quat_init` | `None` | 动作第 0 帧的根姿态，`[w, x, y, z]`。有 `motion_fn` 时必填 |
+
+Runner（两者都是无状态的 `forward_fn((obs_history, goal)) -> action`，所以 `runtime="remote"` 可用）：
+
+| 函数 | 读取 | 说明 |
+|---|---|---|
+| `load_npz_runner(path, *, default_pos, action_scale, precision="bf16")` | XMimic `ckpt_*.npz` | 见 [XMimic](#xmimic) |
+| `load_pt_runner(path, *, default_pos=None, action_scale=None)` | BlinkMimic `.pt` | 用 torch 读文件（`torch` extra），然后在 numpy 中以 fp32 运行网络。残差用 checkpoint 自己的 `q0` 和 scale；若给了 `default_pos` / `action_scale`，必须与之一致 |
+
+`goal_features(root_pos, root_quat, joint_pos, *, frames=10, dt=0.02)` 由连续的 50 Hz 参考行
+`f, f+1, ..., f+11`（接近片段末尾时更少，至少 2 行）构建 `(10, 73)` 的 goal，与训练器的 `Motion.goal` 一致。
+
+网络用 checkpoint 里的滑动均值和方差归一化两个输入，编码 goal，再和历史一起解码，最后加上下一帧的参考
+关节角 `(q_ref - q0) / action_scale`（存在 checkpoint 里的残差）。目标为 `q0 + action_scale * action`，
+无 EMA，无裁剪。
+
+`accepts = (MOTION_FRAMES,)`。`frames`：
+
+- `goal` `(10, 73)`：50 Hz 下的参考帧 `f+1 .. f+10`，到片段末尾时重复最后一帧。每帧：在当前参考帧 `f` 的
+  朝向坐标系下的根位移（3）和旋转（6D，6）；该未来帧自身根坐标系下的根线速度和角速度（3 + 3）；关节角（29）；
+  关节速度 × 0.1（29）。速度是中心差分。
+- `ref_root_quat` `(4,)`：参考帧 `f` 的根姿态，世界坐标系，`[x, y, z, w]`。
+
+模型有两个输入：
+
+- `obs_history`（990）：10 个 tick 的 `[q - q0, dq, base ang vel（机体坐标系）, projected gravity,
+  previous action, 6D(R^T R_ref)]`（每个 99），按帧优先（frame-major）排列，最旧的在前，包括当前 tick。
+  6D 项取旋转矩阵的前两列，按行展平。`reset()` 后的第一个 tick，10 个槽位都填当前条目。
+- `goal`（730）：10 个目标帧，按帧优先排列。
+
+`R_ref` 是世界坐标系中的姿态，所以开始时片段必须转到机器人的朝向；`ClipPlayer` 会这样做。
+
+profile 的 `onnx` variant 加载 BlinkMimic `tools/export_onnx.py` 导出的、训练进一个动作的文件，把这个动作
+作为[行为](#行为)播放。需要 `onnx` extra。`load_onnx_motion(path, providers=None)` 返回
+`(motion_fn, metadata)`；导出文件的输入是 `(obs_history, time_step)`，goal 在文件内部，所以不能跟踪其他片段
+（`check_clip` 会报错）。`check_onnx_metadata(metadata, source)`（`hiwbc.configs.blinkmimic.unitree_g1`）在导出
+文件的关节名、增益、默认姿态或 action scale 与 `G1_*` 的值不同（相对容差 1e-5），或历史长度、goal 帧数、
+控制周期、观测名或 anchor body（pelvis）与本控制器不同时抛出 `ValueError`；profile 加载时会调用它。
+
+这个行为按上游 `tools/play_onnx.py` 的方式播放动作：`time_step` 依次为 `0, 1, ..., frames - 2`，每个 50 Hz
+帧一个 tick，所以行为持续 `(frames - 1) × 0.02` 秒。6D 项在第 0 个 tick 用导出文件的 `anchor_quat_w_init`，
+之后用上一个 tick 的 `next_anchor_quat_w`。上一个动作从零开始。第一个 tick 时，动作只绕 yaw 转到机器人基座的
+朝向。`spec.start_pos` 是动作的第一个姿态；`WbcRobot` 开始前先缓动到这个姿态。forward 失败的 tick 不会推进
+动作。
+
+## XMimic
+
+[XMimic](https://github.com/nico-bohlinger/xmimic)（JAX；Bohlinger 和 Peters，
+[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)）是 BlinkMimic 的重写，policy 接口相同。它的 policy 经
+profile 的 `xmimic` variant 在 [`BlinkMimicController`](#blinkmimic) 上运行；上面的参数、frames、布局和增益都照用。
+
+```python
+import hiwbc
+from hiwbc.controllers.blinkmimic import G1_ACTION_SCALE, G1_DEFAULT_POS, load_npz_runner, self_check
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="xmimic", checkpoint="ckpt_5800.npz")
+# 或只建 runner：
+fwd = load_npz_runner("ckpt_5800.npz", default_pos=G1_DEFAULT_POS, action_scale=G1_ACTION_SCALE)
+assert self_check(fwd) < 1e-4
+```
+
+`load_npz_runner(path, *, default_pos, action_scale, precision="bf16")` 只用 numpy 读 XMimic 的 `ckpt_*.npz`，
+返回无状态的 `forward_fn((obs_history, goal)) -> action`。`precision="bf16"` 像 XMimic 评估时一样把 matmul 输入
+舍入到 bf16；`"fp32"` 不舍入。profile 选项 `precision` 原样传给它。
+
+`self_check(runner, test_vectors=None) -> float` 在 XMimic `.npz` 自带的测试向量（或你传入的
+`(obs_history, goal, action)`）上运行 runner，返回相对 `max(1, |action|)` 的最大动作误差。`precision="bf16"`
+的 runner 与 XMimic 的向量相差约 1e-7；`"fp32"` 的 runner 最多相差约 1e-2。
 
 ## SONIC
 

@@ -14,7 +14,7 @@ Install it first (an editable checkout works), then:
 git clone https://github.com/humanoidintelligence/hiWBC.git && cd hiWBC
 pip install -e '.[dev]'          # add '.[onnx]' / '.[torch]' to run real checkpoints
 python -m pytest                 # run from the repo root; no GPU, weights or robot needed
-ruff check src tests             # line length 100, target py39
+ruff check src tests             # line length 100, target py310
 ```
 
 Every controller takes an injected `forward_fn(obs) -> action`, and the tests

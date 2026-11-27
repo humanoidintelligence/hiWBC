@@ -21,7 +21,7 @@ from ...runtime import load_onnx_runner
 from .._common import ROBOJUDO_MODELS, checkpoint
 
 #: G1 29-DoF MJCF from unitreerobotics/unitree_ros (hiRobot's ``unitree_g1_mujoco`` model).
-G1_MJCF = "~/.cache/hirobot/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.xml"
+G1_MJCF = "~/.cache/hirobot/assets/unitree_ros/robots/g1_description/g1_29dof_rev_1_0.xml"
 
 #: ``linspace(1, 95, 20)`` truncated (RoboJuDo ``future_max_steps`` / ``future_num_steps``).
 FUTURE_STEPS = (1, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60, 65, 70, 75, 80, 85, 90, 95)

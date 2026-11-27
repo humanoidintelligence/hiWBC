@@ -16,6 +16,8 @@ first.
 | `kungfubot_tracker` | [KungfuBot2 / PBHC](https://github.com/TeleHuman/PBHC) | `kungfubot2/horse_test_43000.onnx` | 23 | anchor rotation, next-step and future-motion terms |
 | `protomotions_tracker` | [Human2Humanoid](https://github.com/LeCAR-Lab/human2humanoid) student (ProtoMotions format) | `h2h/h2h.pt` | 21 | `task_obs` |
 | `supermimic` | SuperMimic, unofficial ([supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy)) | the bundle's `policy.onnx` | 29 (SDK order) | `goal`, or a motion clip |
+| `blinkmimic` | [BlinkMimic](https://github.com/fuyichen0725/blinkmimic) | one you train: `blinkmimic/policy.pt`, or a single-motion `.onnx` export | 29 (SDK order) | `goal`, `ref_root_quat`, or a motion clip; an `.onnx` export plays its own motion, as a behavior |
+| `blinkmimic` (`xmimic` variant) | [XMimic](https://github.com/nico-bohlinger/xmimic) | one you train: `xmimic/policy.npz` | 29 (SDK order) | as `blinkmimic` |
 
 ## Where the reference comes from
 
@@ -24,8 +26,8 @@ to get them:
 
 | Source | Controllers | What you do |
 |---|---|---|
-| A motion clip | `twist_tracker`, `supermimic`, `kungfubot_tracker`, `protomotions_tracker` (H2H profile), `sonic` | Wrap a hiRobot `MotionClip` in a `ClipPlayer`; `ctrl.clip_reference(player, state)` builds the terms each tick |
-| The checkpoint's own motion | `asap_tracker`, `beyondmimic_tracker` | `ctrl.start_behavior(name)` returns a source that builds the terms each tick |
+| A motion clip | `twist_tracker`, `supermimic`, `blinkmimic`, `kungfubot_tracker`, `protomotions_tracker` (H2H profile), `sonic` | Wrap a hiRobot `MotionClip` in a `ClipPlayer`; `ctrl.clip_reference(player, state)` builds the terms each tick |
+| The checkpoint's own motion | `asap_tracker`, `beyondmimic_tracker`, `blinkmimic` (`onnx` variant) | `ctrl.start_behavior(name)` returns a source that builds the terms each tick |
 | Your own code | all | Compute the terms and put them in `frames` under the names below |
 
 The quickest start is a profile, which loads the checkpoint with the values it
@@ -102,7 +104,7 @@ action_scale = floats("action_scale")
 print(meta["observation_names"])   # e.g. command,motion_anchor_ori_b,base_ang_vel,...
 ```
 
-**29-DoF SDK order** (`supermimic`): `SUPERMIMIC_JOINT_NAMES` in
+**29-DoF SDK order** (`supermimic`, `blinkmimic`): `SUPERMIMIC_JOINT_NAMES` in
 `hiwbc.controllers.supermimic`, the same as the Unitree SDK / MuJoCo order.
 
 ## `asap_tracker`
@@ -477,6 +479,201 @@ per frame; pass frames `t .. t+9` each tick, and the controller repeats the last
 one near the end of the clip. With `bound_torque=True` (default), the target is
 re-expressed so the robot's PD torque stays within the bundle's effort limits.
 
+## `blinkmimic`
+
+[BlinkMimic](https://github.com/fuyichen0725/blinkmimic) (PyTorch, mjlab)
+trains a G1 tracking policy through a learned world model, the method SuperMimic
+introduced. Its observation and goal differ from `supermimic`'s: a BlinkMimic
+policy does not run on `supermimic`, and the reverse. The same controller also
+runs XMimic policies, which share BlinkMimic's interface ([XMimic](#xmimic)).
+
+```python
+import hiwbc
+from hiwbc.references import ClipPlayer
+
+ctrl = hiwbc.load("blinkmimic/unitree_g1",
+                  checkpoint="model_2700.pt")                # the policy you trained
+player = ClipPlayer(clip, ctrl.control_dt, **ctrl.clip_player_options)   # space "joint"
+ctrl.check_clip(player)                      # needs root_pos, root_quat and joints
+ctrl.reset()
+while not player.done:
+    state = read_state()
+    send(ctrl.step(state, ctrl.clip_reference(player, state)))   # target.kp / kd set
+    player.advance()
+```
+
+Through the `wbc` layer, the same profile plays a hiRobot `MotionClip` sent as
+`MOTION_CLIP` ([robot guide](robot.md#3-commands)):
+
+```yaml
+# g1_blinkmimic.yaml
+defaults: [robots/unitree_g1_mujoco_standing]
+layers:
+  - type: wbc
+    profile: blinkmimic/unitree_g1   # checkpoint defaults to ~/.cache/hiwbc/blinkmimic/policy.pt
+```
+
+```python
+from hirobot import Action, ControlMode, make_robot
+
+robot = make_robot("g1_blinkmimic.yaml")
+robot.connect()
+play = Action(mode=ControlMode.MOTION_CLIP, motion=clip)
+robot.send_action(play)
+while not robot.get_status().command.done:
+    robot.send_action(play)   # the same object: the clip keeps playing
+robot.hold()
+```
+
+As with every tracker, the robot should start near the clip's first frame
+(see **Start pose** above).
+
+| Variant | Checkpoint (default `checkpoint`) | Needs | Notes |
+|---|---|---|---|
+| `default` | BlinkMimic `.pt` (`~/.cache/hiwbc/blinkmimic/policy.pt`) | `torch` extra | torch only reads the file; the network runs in numpy, fp32 |
+| `xmimic` | XMimic `ckpt_*.npz` (`~/.cache/hiwbc/xmimic/policy.npz`) | numpy | See [XMimic](#xmimic) |
+| `onnx` | a BlinkMimic `tools/export_onnx.py` export, one motion baked in (`~/.cache/hiwbc/blinkmimic/dance1_subject2.onnx`; pass your export's path) | `onnx` extra | Plays that motion as a behavior (`ctrl.behaviors`, `start_behavior`); cannot track other clips |
+
+Profile options: `checkpoint` (path), `precision` (`xmimic` only, default
+`"bf16"`), `providers` (`onnx` only, onnxruntime execution providers, default
+CPU), `bound_torque` (default `True`: the target is re-expressed so the PD
+torque stays within each joint's effort limit, as the training actuator clips
+it). Default pose, action scale, gains and effort limits are BlinkMimic's G1
+actuator model (`G1_*` in `hiwbc.controllers.blinkmimic`).
+
+**Getting a checkpoint.** BlinkMimic publishes no trained weights and hiWBC
+ships none. Train one with the upstream repository and pass its path as
+`checkpoint=`: BlinkMimic reaches its training target in about 3 minutes on one
+RTX 4090 (its README).
+
+**Layout** (G1, 29 joints, SDK order, 50 Hz). The model takes two inputs:
+
+- `obs_history` (990): 10 ticks, frame-major, oldest first, current tick
+  included; after `reset()` all 10 slots hold the current entry. Each tick is
+  99 values: `q - q0` (29), `dq` (29), base angular velocity in the body frame
+  (3), projected gravity (3), previous action (29), and the reference root
+  orientation relative to the robot root (6: the first two columns of
+  `R^T R_ref`).
+- `goal` (730): the next 10 reference frames, `f+1 .. f+10`, the last one
+  repeated at the clip end. Each frame is 73 values: root displacement (3) and
+  rotation (6D, 6) in the current reference frame's heading frame, root linear
+  and angular velocity in that future frame's root frame (3 + 3), joint angles
+  (29), joint velocities × 0.1 (29).
+
+`frames` carries `goal` `(10, 73)` and `ref_root_quat` `(4,)`, the current
+reference root orientation, `[x, y, z, w]`. `clip_reference` builds both; the
+goal velocities are central differences of the clip resampled to 50 Hz, as the
+trainers compute them. The model adds the next frame's reference joint angles to
+its output (a residual stored in the checkpoint), and the target is
+`q0 + action_scale * action`, with no EMA and no clip. Gains follow the
+trainers' formula: `kp = armature * (2π · 10 Hz)²`,
+`kd = 2 · 2.0 · armature · (2π · 10 Hz)` (damping ratio 2.0), `action_scale = 0.25 · effort / kp`.
+XMimic uses the same layout.
+
+The orientation term in `obs_history` compares the robot's world orientation
+with the reference's, so the clip must face the way the robot faces. The clip
+player turns the clip to the robot's heading at the first tick. On hardware,
+IMU yaw drift goes straight into that term.
+
+**The `onnx` variant.** BlinkMimic's `tools/export_onnx.py` bakes one motion's
+goal into the graph, so the export plays that motion and cannot track other
+clips:
+
+```python
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="onnx",
+                  checkpoint="dance1_subject2.onnx")   # your export
+(spec,) = ctrl.behaviors                 # named after the metadata's motion field
+ramp_to(spec.start_pos)                  # the motion's first pose, SDK order
+source = ctrl.start_behavior(spec.name)  # no arguments; resets the controller
+while not source.done:
+    state = read_state()
+    send(ctrl.step(state, source.next(state)))
+```
+
+- The behavior is named after the export's metadata `motion` field, or the file
+  stem if there is none. It takes no arguments and lasts `(frames - 1) × 0.02`
+  s.
+- Playback follows upstream `tools/play_onnx.py`: one frame per tick, the
+  previous action starting at zero. At the first tick the motion is turned, yaw
+  only, onto the robot's heading.
+- Through the `wbc` layer, `robot.run_layer_skill(spec.name)` starts it, and
+  `WbcRobot` first ramps the robot to the motion's first pose
+  ([robot guide](robot.md#3-commands)).
+- Loading fails if the export's metadata joint names, gains, default pose or
+  action scale differ from BlinkMimic's G1 values (relative tolerance 1e-5), or
+  its history length, goal frames, control period or observation names differ
+  from this controller's.
+
+**On hardware.** `blinkmimic` has run in simulation only, with both BlinkMimic
+and XMimic policies. Before a real robot,
+note two things:
+
+- The network runs in numpy. On a machine with many cores, BLAS threads can
+  make the step time spike; set `OMP_NUM_THREADS=1` for the control process.
+- BlinkMimic's G1 actuator model, which the policy was trained with, gives the
+  ankles and waist roll / pitch a 50 N·m effort limit. hiRobot's G1 body config
+  lists 35 N·m for those joints, so `bound_torque` clips those joints at a
+  higher torque than the body config allows.
+
+Checked against BlinkMimic with a checkpoint trained on LAFAN1 G1:
+
+- **Policy inputs.** With identical inputs, the observation entry matches to 3e-7 and the goal to 1e-5. When
+  hiWBC builds the goal itself from the 30 fps CSV, it differs by up to 1e-3 late in long clips. The cause is
+  BlinkMimic resampling on a float32 time grid, where hiWBC uses float64.
+- **Action.** The `.pt` runner matches BlinkMimic's fp32 policy to 2.4e-6. The `onnx` variant replays
+  BlinkMimic's recorded 6573-tick rollout of its export to 4.4e-6.
+- **Closed loop, training scene.** In BlinkMimic's training scene in MuJoCo, hiWBC stays upright on walk,
+  dance and fall-and-get-up clips. Its mean joint error is within 6e-4 rad of BlinkMimic's own evaluation.
+- **Closed loop, hiRobot.** Through `WbcRobot` on hiRobot's free-base G1, the policy plays 20 s of walking
+  and 30 s of dancing without falling. This holds whether the robot starts at the default pose or at the
+  clip's first frame.
+- **Clip end.** Like the other trackers, the robot falls within about a second after the clip ends (see
+  Pitfalls).
+
+BlinkMimic is MIT-licensed. The checkpoints it trains derive from LAFAN1
+(CC BY-NC-ND 4.0), so a trained policy is for non-commercial use only.
+
+## XMimic
+
+[XMimic](https://github.com/nico-bohlinger/xmimic) is a JAX rewrite of
+BlinkMimic (paper: Bohlinger and Peters, "XMimic and XSoma: Learning Humanoid
+Motion Tracking and Locomotion in Under a Minute", 2026,
+[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)). Its policies have
+BlinkMimic's interface, so the [`blinkmimic`](#blinkmimic) controller runs them
+through the `xmimic` variant; clips, layout, gains and the hardware notes are
+the same.
+
+```python
+ctrl = hiwbc.load("blinkmimic/unitree_g1", variant="xmimic",
+                  checkpoint="ckpt_5800.npz")      # the policy you trained
+```
+
+```yaml
+# g1_xmimic.yaml
+defaults: [robots/unitree_g1_mujoco_standing]
+layers:
+  - type: wbc
+    profile: blinkmimic/unitree_g1
+    variant: xmimic          # checkpoint defaults to ~/.cache/hiwbc/xmimic/policy.npz
+```
+
+- **Checkpoint.** An XMimic `ckpt_*.npz`. XMimic publishes no weights; its
+  README reports 2.5 minutes of training on one H100 and 0.86 minutes on four.
+  The file is read with numpy, no extra needed.
+- **Precision.** `precision="bf16"` (default) rounds the matmul inputs to bf16
+  as XMimic's evaluation does; `"fp32"` does not. `self_check` compares a
+  runner with the test actions stored in the `.npz` ([API](../api.md#xmimic)).
+- **Parity.** In fp32 the runner matches XMimic's policy to 6.4e-6. The bf16
+  path can't be matched tick for tick: XMimic's own bf16 output changes by up
+  to 0.023 between running a tick alone and in a batch. hiWBC reproduces the
+  checkpoint's stored test actions to 1e-5. In XMimic's training scene hiWBC
+  stays upright on walk, dance and fall-and-get-up clips, with mean joint error
+  within 3e-4 rad of XMimic's own rollout; through `WbcRobot` it plays 20 s of
+  walking and 30 s of dancing without falling.
+
+XMimic is MIT-licensed; policies trained on LAFAN1 are for non-commercial use
+only.
+
 ## Pitfalls
 
 - **History order.** ASAP and KungfuBot2 histories are term-major and newest
@@ -484,6 +681,10 @@ re-expressed so the robot's PD torque stays within the bundle's effort limits.
   about 1 s.
 - **Start pose.** Starting a tracker from the default pose instead of the
   motion's first frame can make it fall in the first second.
+- **After the clip.** Trackers have no standing reference, so when a clip or
+  behavior ends `WbcRobot` holds `default_pos` under plain PD, which does not
+  balance. A free-base robot falls within about a second. Send the next clip
+  before the current one ends.
 - **Motion clock drift.** With your own BeyondMimic reference, `time_step` and
   the reference must refer to the same frame; advance both once per tick. The
   behavior does this for you.

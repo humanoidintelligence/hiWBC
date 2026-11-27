@@ -101,9 +101,9 @@ hiRobot's MuJoCo G1 is the real G1's config with a MuJoCo overlay, so joint
 names, order and cameras match the real robot, and the same `layers:` entry runs
 on both. `unitree_g1_mujoco_standing` stands it free on the floor;
 `unitree_g1_mujoco` welds the pelvis. Both need the G1 MJCF from Unitree's
-`unitree_ros`, fetched as hiRobot's
-[setup guide](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/setup/unitree.md)
-describes.
+`unitree_ros`: `hirobot assets fetch unitree_g1` downloads it (hiRobot's
+[setup guide](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/setup/unitree.md)).
+The `kungfubot_tracker` and `protomotions_tracker` profiles read the same file for body FK.
 
 - `robot.get_observation().images["head"]` is the head camera (1920x1080),
   rendered each call (about 1 ms). The layer does not use it; it is there for a

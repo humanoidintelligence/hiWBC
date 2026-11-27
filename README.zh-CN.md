@@ -14,6 +14,7 @@
 <tr><td colspan="5" align="center"><img src="assets/real/photo_1.png" width="172" height="104" alt="Humanoid robots performing whole-body motions (1)"><img src="assets/real/photo_2.png" width="172" height="104" alt="Humanoid robots performing whole-body motions (2)"><img src="assets/real/photo_3.png" width="165" height="104" alt="Humanoid robots performing whole-body motions (3)"><img src="assets/real/photo_4.png" width="157" height="104" alt="Humanoid robots performing whole-body motions (4)"><img src="assets/real/photo_5.png" width="92" height="104" alt="Humanoid robots performing whole-body motions (5)"></td></tr>
 <tr><td align="center"><a href="docs/guides/locomotion.zh-CN.md#unitree_locounitree_rl_gym带步态"><img src="assets/controllers/unitree_loco.gif" width="130" alt="unitree_loco"></a><br><sub>unitree_loco</sub></td><td align="center"><a href="docs/guides/locomotion.zh-CN.md#smooth_loco"><img src="assets/controllers/smooth_loco.gif" width="130" alt="smooth_loco"></a><br><sub>smooth_loco</sub></td><td align="center"><a href="docs/guides/locomotion.zh-CN.md#amo_loco"><img src="assets/controllers/amo_loco.gif" width="130" alt="amo_loco"></a><br><sub>amo_loco</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#asap_tracker"><img src="assets/controllers/asap_tracker.gif" width="130" alt="asap_tracker"></a><br><sub>asap_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#beyondmimic_tracker"><img src="assets/controllers/beyondmimic_tracker.gif" width="130" alt="beyondmimic_tracker"></a><br><sub>beyondmimic_tracker</sub></td></tr>
 <tr><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#twist_tracker"><img src="assets/controllers/twist_tracker.gif" width="130" alt="twist_tracker"></a><br><sub>twist_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#kungfubot_tracker"><img src="assets/controllers/kungfubot_tracker.gif" width="130" alt="kungfubot_tracker"></a><br><sub>kungfubot_tracker</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#protomotions_trackerh2h"><img src="assets/controllers/protomotions_tracker.gif" width="130" alt="protomotions_tracker"></a><br><sub>protomotions_tracker</sub></td><td align="center"><a href="docs/guides/sonic.zh-CN.md#4-跟踪参考动作joint-模式"><img src="assets/controllers/sonic.gif" width="130" alt="sonic"></a><br><sub>sonic</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#supermimic"><img src="assets/controllers/supermimic.gif" width="130" alt="supermimic"></a><br><sub>supermimic</sub></td></tr>
+<tr><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#blinkmimic"><img src="assets/controllers/blinkmimic.gif" width="130" alt="blinkmimic"></a><br><sub>blinkmimic</sub></td><td align="center"><a href="docs/guides/motion_tracking.zh-CN.md#xmimic"><img src="assets/controllers/xmimic.gif" width="130" alt="xmimic"></a><br><sub>xmimic</sub></td></tr>
 </table>
 
 <!-- controller-gallery:end -->
@@ -87,7 +88,7 @@ hiWBC 是人形机器人底层的**全身控制**层。人形机器人不能开�
 > [RoboJuDo](https://github.com/HansZ8/RoboJuDo) 部署的 policy（`unitree_loco`、`smooth_loco`、`amo_loco`、
 > `asap_tracker`、`twist_tracker`、`beyondmimic_tracker`、`kungfubot_tracker`、`protomotions_tracker`）我们之前
 > 已在真机上测试过；这次又在 MuJoCo 中把每个 hiWBC 控制器与 RoboJuDo 逐 tick 对比过。这一版本身，包括
-> `sonic`、`supermimic` 和 `wbc` layer，只在仿真中运行过。
+> `sonic`、`supermimic`、`blinkmimic` 和 `wbc` layer，只在仿真中运行过。
 > 先在仿真中调试到能用，再一步步转到真机：先只读，再把机器人吊在龙门架上用低增益
 > 运行，急停放在手边，机器人够得着的范围内不站人。在硬件上，`wbc` layer 会先插值到控制器的默认姿态再交给
 > 控制器，命令停止时保持站立，出现故障时进入阻尼（[指南](docs/guides/robot.zh-CN.md)）；这些都代替不了
@@ -117,6 +118,8 @@ hiWBC 是人形机器人底层的**全身控制**层。人形机器人不能开�
 | `protomotions_tracker` | [ProtoMotions](https://github.com/NVlabs/ProtoMotions) | `task_obs` |
 | `kungfubot_tracker` | [KungfuBot / PBHC](https://github.com/TeleHuman/PBHC) | `anchor_ref_rot`、`next_step_ref_motion`、`future_motion_*`；模型有三个输入，所以 `observe` 返回一个 tuple |
 | `supermimic` | SuperMimic，非官方复现（[supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy)，Unitree G1） | `goal`：来自 `goal_features` 的 `(T, 68)` 未来目标帧；`SuperMimicController.from_bundle(assets_dir)` 加载 bundle 中的 `config.json` 和 `policy.onnx` |
+| `blinkmimic` | [BlinkMimic](https://github.com/fuyichen0725/blinkmimic)（Unitree G1；`.pt`，或训练进单个动作的 `.onnx` 导出文件） | `goal`：`(10, 73)` 接下来的参考帧，以及 `ref_root_quat`；BlinkMimic 不发布权重，checkpoint 需要自己训 |
+| `blinkmimic`（`xmimic` variant） | [XMimic](https://github.com/nico-bohlinger/xmimic)（Unitree G1；`.npz`），BlinkMimic 的 JAX 重写 | 同 `blinkmimic`；XMimic 也不发布权重 |
 
 **通用 motion token**：`ReferenceKind.LATENT` 或 `ReferenceKind.MOTION_FRAMES`：
 
@@ -131,8 +134,8 @@ ONNX 文件（需要 `onnx` extra）。为了按速度命令行走，`sonic/unit
 发布中的运动学 planner（规划器）：planner 根据命令预测下半身的动作，SONIC 跟踪它。
 
 跟踪器读取当前 tick 的参考项。`ClipPlayer`（`hiwbc.references`）把 hiRobot 的 `MotionClip` 转成 `sonic`、
-`twist_tracker` 和 `supermimic` 需要的这些项；ASAP 和 BeyondMimic 的 checkpoint 把训练进去的动作作为行为
-（behavior）播放。`kungfubot_tracker` 和 `protomotions_tracker` 也接受动作片段：它们的 profile 用 hiRobot 的
+`twist_tracker`、`supermimic` 和 `blinkmimic` 需要的这些项；ASAP 和 BeyondMimic 的 checkpoint，以及 BlinkMimic
+的 ONNX 导出文件，把训练进去的动作作为行为（behavior）播放。`kungfubot_tracker` 和 `protomotions_tracker` 也接受动作片段：它们的 profile 用 hiRobot 的
 运动学计算需要正向运动学的项（KungfuBot 的关键身体部位位置、H2H 的模仿观测）。
 
 `echo` 是一个不依赖任何东西的桩，接受所有参考类型，返回默认姿态。它不需要模型就能端到端地检验接口约定。
@@ -248,7 +251,7 @@ G1 在 5 秒内向前走约 1.5 m，然后站住。在真机上，layer 改为�
 ### 真机
 
 RoboJuDo 部署的 policy 我们之前已在真机上测试过，它们的 hiWBC 控制器在 MuJoCo 中与 RoboJuDo 逐 tick 一致；
-这一版本身，包括 `sonic`、`supermimic` 和 `wbc` layer，只在仿真中运行过。同样的 `layers:` 条目放进真机的
+这一版本身，包括 `sonic`、`supermimic`、`blinkmimic` 和 `wbc` layer，只在仿真中运行过。同样的 `layers:` 条目放进真机的
 hiRobot 配置中，真机按 hiRobot 的
 [设置指南](https://github.com/humanoidintelligence/hiRobot/tree/main/docs/setup)设置。在硬件上，`connect()`
 会启动一个线程，以控制频率运行控制器，在命令之间也保持平衡。启动插值只是普通的 PD，不做平衡，所以在控制器接管
@@ -315,6 +318,7 @@ hiWBC/
 │       ├── protomotions.py  # protomotions_tracker
 │       ├── kungfubot.py     # kungfubot_tracker
 │       ├── supermimic.py    # supermimic：SuperMimic 跟踪器（非官方复现）
+│       ├── blinkmimic.py    # blinkmimic：BlinkMimic / XMimic 跟踪器
 │       ├── sonic.py         # sonic：SONIC 编码器 → motion token → 解码器（与机器人无关）
 │       └── sonic_planner.py # SONIC 的行走 planner：速度命令 -> 参考动作
 ├── tests/                   # pytest 测试集；policy 都是桩，不需要 GPU 或权重
@@ -382,7 +386,10 @@ hiWBC/
 控制器遵循 NVIDIA [GR00T-WholeBodyControl](https://github.com/NVlabs/GR00T-WholeBodyControl)（Apache-2.0）中的
 C++ 部署。hiWBC 不附带 SONIC 权重；已发布的 checkpoint 采用 NVIDIA Open Model License。`supermimic` 控制器遵循
 [supermimic_deploy](https://github.com/KyrieYoung926/supermimic_deploy)（MIT）的推理代码，hiWBC 同样不附带
-SuperMimic 权重。policy 本身来自
+SuperMimic 权重。`blinkmimic` 控制器遵循 [BlinkMimic](https://github.com/fuyichen0725/blinkmimic)（MIT）的 policy 代码，它的
+`xmimic` variant 遵循 [XMimic](https://github.com/nico-bohlinger/xmimic)（MIT；Bohlinger 和 Peters，"XMimic and
+XSoma: Learning Humanoid Motion Tracking and Locomotion in Under a Minute"，[arXiv:2611.20452](https://arxiv.org/abs/2611.20452)）。
+两者都不发布权重，在 LAFAN1（CC BY-NC-ND 4.0）上训出的 policy 只能用于非商业用途。policy 本身来自
 [支持的控制器](#支持的控制器)中链接的项目。
 
 ## 许可证

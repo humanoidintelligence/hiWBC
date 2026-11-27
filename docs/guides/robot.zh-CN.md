@@ -90,8 +90,9 @@ robot.disconnect()
 
 hiRobot 的 MuJoCo G1 是真实 G1 的配置加上一层 MuJoCo 覆盖，所以关节名、关节顺序和相机都与真机一致，
 同一个 `layers:` 条目在两者上都能运行。`unitree_g1_mujoco_standing` 让它自由站在地面上；
-`unitree_g1_mujoco` 焊住骨盆。两者都需要 Unitree `unitree_ros` 中的 G1 MJCF，按 hiRobot 的
-[设置指南](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/setup/unitree.md)获取。
+`unitree_g1_mujoco` 焊住骨盆。两者都需要 Unitree `unitree_ros` 中的 G1 MJCF：`hirobot assets fetch unitree_g1` 下载它（见 hiRobot 的
+[设置指南](https://github.com/humanoidintelligence/hiRobot/blob/main/docs/setup/unitree.md)）。
+`kungfubot_tracker` 和 `protomotions_tracker` 的 profile 也用这个文件做身体 FK。
 
 - `robot.get_observation().images["head"]` 是头部相机（1920x1080），每次调用时渲染（约 1 ms）。
   layer 不使用它；它是留给上层 policy 的。没有 GL 上下文时，机器人照常运行，只是没有图像。

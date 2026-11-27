@@ -17,7 +17,8 @@ from hiwbc.configs.sonic.unitree_g1 import (
 def test_import_hiwbc_loads_no_model_runtime():
     code = (
         "import sys, hiwbc, hiwbc.runtime, hiwbc.controllers.sonic, hiwbc.controllers.supermimic, "
-        "hiwbc.configs.sonic.unitree_g1, "
+        "hiwbc.configs.sonic.unitree_g1, hiwbc.controllers.blinkmimic, "
+        "hiwbc.configs.blinkmimic.unitree_g1, "
         "hiwbc.controllers.amo; "
         "print(','.join(m for m in ('torch', 'onnxruntime') if m in sys.modules))"
     )
@@ -58,10 +59,11 @@ def _tiny_onnx(path, inputs, out_dim=3):
         names.append(name)
     # sum of each input's first out_dim entries
     nodes.append(helper.make_node("Concat", names, ["cat"], axis=1))
-    starts = helper.make_tensor("s", TensorProto.INT64, [1], [0])
-    ends = helper.make_tensor("e", TensorProto.INT64, [1], [out_dim])
-    axes = helper.make_tensor("a", TensorProto.INT64, [1], [1])
-    nodes.append(helper.make_node("Slice", ["cat", "s", "e", "a"], ["action"]))
+    # initializer names must not collide with input names (onnx >= 1.17 rejects it)
+    starts = helper.make_tensor("_s", TensorProto.INT64, [1], [0])
+    ends = helper.make_tensor("_e", TensorProto.INT64, [1], [out_dim])
+    axes = helper.make_tensor("_a", TensorProto.INT64, [1], [1])
+    nodes.append(helper.make_node("Slice", ["cat", "_s", "_e", "_a"], ["action"]))
     graph = helper.make_graph(
         nodes, "g", vis, [helper.make_tensor_value_info("action", TensorProto.FLOAT, [1, out_dim])],
         initializer=[starts, ends, axes],

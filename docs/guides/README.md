@@ -11,7 +11,7 @@ up for a released policy, with the values each policy was trained with.
 |---|---|---|
 | [Getting started](getting_started.md) | all | the control loop, joint order, forward functions, first power-on |
 | [Velocity-command locomotion](locomotion.md) | `unitree_loco`, `smooth_loco`, `amo_loco` | `VELOCITY`: a joystick-style `[vx, vy, wyaw]` (AMO: plus height and torso) |
-| [Reference-motion tracking](motion_tracking.md) | `asap_tracker`, `twist_tracker`, `beyondmimic_tracker`, `kungfubot_tracker`, `protomotions_tracker`, `supermimic` | `MOTION_FRAMES`: reference terms for this tick, a motion clip, or the checkpoint's own motion (a behavior) |
+| [Reference-motion tracking](motion_tracking.md) | `asap_tracker`, `twist_tracker`, `beyondmimic_tracker`, `kungfubot_tracker`, `protomotions_tracker`, `supermimic`, `blinkmimic` (BlinkMimic, XMimic) | `MOTION_FRAMES`: reference terms for this tick, a motion clip, or the checkpoint's own motion (a behavior) |
 | [SONIC](sonic.md) | `sonic` | `LATENT` (a motion token), `MOTION_FRAMES`, a motion clip, or `VELOCITY` through its locomotion planner |
 | [Running as a hiRobot robot](robot.md) | all | hiRobot `Action`s through the `wbc` layer: velocity, walk-to-pose, hand poses, clips; faults, status, remote inference |
 
