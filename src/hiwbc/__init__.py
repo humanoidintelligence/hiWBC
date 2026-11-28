@@ -8,6 +8,7 @@ touch balance, locomotion, or the vendor control loop.
 # Importing the controllers package registers the built-in controllers.
 from . import controllers  # noqa: F401
 from .controller import Controller
+from .examples import robot_configs
 from .registry import (
     Profile,
     available_controllers,
@@ -15,6 +16,7 @@ from .registry import (
     get_profile,
     load,
     make_controller,
+    profile_info,
     register_controller,
     register_profile,
 )
@@ -28,7 +30,7 @@ from .types import (
     ReferenceSource,
 )
 
-__version__ = "0.0.3"   # the only place the version is written (pyproject reads it)
+__version__ = "0.0.4"   # the only place the version is written (pyproject reads it)
 
 __all__ = [
     "BehaviorSpec",
@@ -47,6 +49,8 @@ __all__ = [
     "load_onnx_runner",
     "load_torchscript_runner",
     "make_controller",
+    "profile_info",
     "register_controller",
     "register_profile",
+    "robot_configs",
 ]

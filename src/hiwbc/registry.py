@@ -18,6 +18,7 @@ import importlib
 import pkgutil
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 from .controller import Controller
@@ -59,6 +60,11 @@ class Profile:
     configuration has a single ``"default"`` variant. ``default_options`` lists every
     option ``load()`` accepts besides ``variant``, with its default; any other key is
     an error.
+
+    ``info(variant, options)``, if given, describes the controller ``build`` would
+    make without loading anything: a dict with ``joint_names``,
+    ``velocity_limits`` and ``files`` (the checkpoint paths ``build`` opens).
+    :func:`profile_info` uses it.
     """
 
     name: str
@@ -66,6 +72,7 @@ class Profile:
     variants: Mapping[str, Any]
     default_options: Mapping[str, Any] = field(default_factory=dict)
     description: str = ""
+    info: Callable[[Any, dict[str, Any]], dict[str, Any]] | None = None
 
     @property
     def default_variant(self) -> str:
@@ -83,6 +90,7 @@ def register_profile(
     variants: Mapping[str, Any],
     default_options: Mapping[str, Any] | None = None,
     description: str = "",
+    info: Callable[[Any, dict[str, Any]], dict[str, Any]] | None = None,
 ) -> Profile:
     """Register a profile ``<controller>/<robot>``. Call it from a ``configs/`` module."""
     if name.count("/") != 1 or not all(name.split("/")):
@@ -95,7 +103,7 @@ def register_profile(
     if "variant" in options:
         raise ValueError("'variant' is implied; do not list it in default_options")
     profile = Profile(name=name, build=build, variants=dict(variants),
-                      default_options=options, description=description)
+                      default_options=options, description=description, info=info)
     _PROFILES[name] = profile
     return profile
 
@@ -119,6 +127,42 @@ def get_profile(name: str) -> Profile:
     if name not in _PROFILES:
         raise KeyError(f"unknown profile {name!r}; available: {available_profiles()}")
     return _PROFILES[name]
+
+
+def profile_info(profile: str, options: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    """What ``load(profile, **options)`` would build, without loading a checkpoint.
+
+    ``options`` may be a whole ``wbc`` layer entry: keys that are not the
+    profile's options (``variant`` and its ``default_options``) are ignored here,
+    and ``load()`` still rejects the unknown ones. Returns:
+
+    * ``description``: the profile's description
+    * ``variant``: the variant used
+    * ``joint_names``: the joints the controller drives, hiRobot names
+    * ``velocity_limits``: per-axis ``(min, max)`` of a ``[vx, vy, wz]`` command,
+      as ``WbcRobot.base_velocity_limits``
+    * ``missing_files``: the checkpoint files ``load()`` would open that are not
+      on disk (``[]``: all there)
+
+    A field the profile does not describe is ``None``. Raises ``KeyError`` for an
+    unknown profile and ``ValueError`` for an unknown variant.
+    """
+    p = get_profile(profile)
+    options = {k: v for k, v in (options or {}).items()
+               if k == "variant" or k in p.default_options}
+    variant = options.pop("variant", None) or p.default_variant
+    if variant not in p.variants:
+        raise ValueError(f"profile {profile!r} has no variant {variant!r}; available: {sorted(p.variants)}")
+    out: dict[str, Any] = {"description": p.description, "variant": variant,
+                           "joint_names": None, "velocity_limits": None, "missing_files": None}
+    if p.info is not None:
+        info = p.info(p.variants[variant], {**p.default_options, **options})
+        names, limits = info.get("joint_names"), info.get("velocity_limits")
+        out["joint_names"] = None if names is None else list(names)
+        out["velocity_limits"] = None if limits is None else tuple(tuple(a) for a in limits)
+        if info.get("files") is not None:
+            out["missing_files"] = [str(f) for f in info["files"] if not Path(f).is_file()]
+    return out
 
 
 def load(profile: str, **options) -> Controller:

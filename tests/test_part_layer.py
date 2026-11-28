@@ -74,10 +74,6 @@ def test_the_arm_is_commanded_beside_the_controlled_g1():
     robot.disconnect()
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "hiRobot e5c37a9: PartLayers sends an action that does not name the layer's part "
-    "straight down, and the node idle-steps the raw body, not the layer, so the "
-    "controller skips the tick (hiRobot docs/api.md says it runs one)"))
 def test_the_controller_still_ticks_when_only_the_arm_is_commanded():
     robot = _robot()
     wbc = _wbc(robot)

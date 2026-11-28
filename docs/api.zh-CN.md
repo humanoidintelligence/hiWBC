@@ -55,11 +55,12 @@ hiWBC 计算 `(ControllerState, Reference) -> JointTarget`。控制器不做任�
 | `BehaviorSpec`, `ReferenceSource` | dataclass / protocol | `hiwbc.types` | 控制器自带的一个行为，以及它返回的逐 tick 参考源 |
 | `Controller` | 抽象类 | `hiwbc.controller` | `observe` → `forward` → 共用的后处理 |
 | `register_controller`, `make_controller`, `available_controllers` | 函数 | `hiwbc.registry` | 按名字注册的控制器注册表 |
-| `load`, `get_profile`, `available_profiles`, `register_profile`, `Profile` | 函数 / dataclass | `hiwbc.registry` | Profile：某台机器人上带训练取值和 checkpoint 的控制器 |
+| `load`, `profile_info`, `get_profile`, `available_profiles`, `register_profile`, `Profile` | 函数 / dataclass | `hiwbc.registry` | Profile：某台机器人上带训练取值和 checkpoint 的控制器 |
 | `load_onnx_runner`, `load_torchscript_runner` | 函数 | `hiwbc.runtime` | 从 checkpoint 文件构建 `forward_fn` |
 | `WbcRobot` | 类 | `hiwbc.robot` | hiRobot layer（`type: wbc`）；它导入 `hirobot`，所以不从顶层重新导出 |
 | `make_remote`, `RemoteFn`, `ForwardTimeout`, `RemoteError` | 函数 / 类 | `hiwbc.remote` | 在 `hiwbc.serve` 上运行控制器的模型前向 |
 | `ModelServer` | 类 | `hiwbc.serve` | 前向服务（`python -m hiwbc.serve`） |
+| `robot_configs` | 函数 | `hiwbc.examples` | hiWBC 自带的机器人配置，名字 -> 路径（[WbcRobot](#wbcrobothirobot-layer)） |
 | `__version__` | str | `hiwbc` | 包版本 |
 
 导入 `hiwbc` 会导入 `hiwbc.controllers`，从而注册内置控制器。控制器类在各自的模块里：
@@ -167,7 +168,7 @@ ctrl.joint_names, ctrl.kp          # 控制器的关节顺序和增益
 ```python
 Controller(*, num_actions, default_pos, action_scale=1.0, action_clip=None, action_beta=1.0,
            joint_names=None, obs_joint_names=None, kp=None, kd=None, control_dt=0.02,
-           cartesian_targets=None, stand_command=None)
+           cartesian_targets=None, stand_command=None, velocity_limits=None)
 ```
 
 | 参数 | 说明 |
@@ -183,9 +184,10 @@ Controller(*, num_actions, default_pos, action_scale=1.0, action_clip=None, acti
 | `control_dt` | 控制周期，s |
 | `cartesian_targets` | 末端执行器名 -> 控制器目标名，用于接收笛卡尔目标的控制器。只有带 planner 的 `sonic` 设置它（`left_hand` -> `left_wrist`，`right_hand` -> `right_wrist`） |
 | `stand_command` | 对该 checkpoint 表示"站住"的 `VELOCITY` 命令（不一定是零） |
+| `velocity_limits` | `[vx, vy, wz]` `VELOCITY` 命令每个轴测试过的 `(min, max)`，单位同命令。`None`：没给。`sonic`（带 planner）和 `unitree_loco` 的 `default` profile 设为 `((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0))` |
 
 以下情况构造函数抛出 `ValueError`：`default_pos`、`action_scale`、`kp` 或 `kd` 形状错误；`action_scale`、
-`action_clip` 或 `control_dt` 不为正；`action_beta` 不在 `(0, 1]` 内；`joint_names` 长度不对或有重复；
+`action_clip` 或 `control_dt` 不为正；`action_beta` 不在 `(0, 1]` 内；`velocity_limits` 不是三对满足 `min <= 0 <= max` 的 `(min, max)`；`joint_names` 长度不对或有重复；
 给了 `obs_joint_names` 却没有 `joint_names`。
 
 | 成员 | 说明 |
@@ -250,9 +252,10 @@ ctrl = hiwbc.load("beyondmimic_tracker/unitree_g1", variant="jump_wose",
 | 函数 | 说明 |
 |---|---|
 | `load(profile, **options) -> Controller` | 构建控制器。`options` 是 `variant` 加上该 profile 的 `default_options`；其他键抛出 `TypeError`，未知 variant 抛出 `ValueError`。checkpoint 在这里加载，所以文件缺失会立刻报错。`runtime="remote"`、`endpoint`、`remote_timeout_s` 让前向在服务器上运行（[远程推理](#远程推理)） |
-| `get_profile(name) -> Profile` | 返回 `Profile`（`name`、`variants`、`default_variant`、`default_options`、`description`）。首次使用时导入其模块 |
+| `profile_info(profile, options=None) -> dict` | `load(profile, **options)` 会建出什么，但不加载 checkpoint，也不导入模型运行时：`description`、`variant`、`joint_names`（控制器驱动的关节）、`velocity_limits`（同 `WbcRobot.base_velocity_limits`）、`missing_files`（`load` 要打开但磁盘上没有的 checkpoint 文件；`[]` 表示齐了）。`options` 可以是整个 `wbc` layer 条目：不是该 profile 选项的键会忽略。profile 没描述的字段是 `None`；`sonic/unitree_g1` 和 `unitree_loco/unitree_g1` 全都描述了。未知 profile 抛出 `KeyError`，未知 variant 抛出 `ValueError` |
+| `get_profile(name) -> Profile` | 返回 `Profile`（`name`、`variants`、`default_variant`、`default_options`、`description`、`info`）。首次使用时导入其模块 |
 | `available_profiles() -> list[str]` | 自带的和已注册的 profile。只列模块名而不导入，所以不会加载任何模型运行时 |
-| `register_profile(name, *, build, variants, default_options=None, description="")` | 从 `configs/` 模块注册一个 profile。`build(variant_data, options) -> Controller` |
+| `register_profile(name, *, build, variants, default_options=None, description="", info=None)` | 从 `configs/` 模块注册一个 profile。`build(variant_data, options) -> Controller`；`info(variant_data, options) -> dict` 给出 `joint_names`、`velocity_limits`、`files`（checkpoint 路径），供 `profile_info` 用 |
 
 有 `"default"` 时 `default_variant` 就是它，否则是列出的第一个。
 
@@ -435,7 +438,8 @@ hiWBC 通过 `hirobot.drivers` entry point 把它注册为 `wbc` layer，所以 
 | 成员 | 说明 |
 |---|---|
 | `action_modes` | 由控制器决定：`BASE_VELOCITY`（接受 `VELOCITY`）、`MOTION_LATENT`（`LATENT`）、`MOTION_CLIP`（`motion_spaces`）、`CARTESIAN`（`cartesian_targets` 和 `VELOCITY`）、`BASE_POSE`（`BASE_VELOCITY` 且机器人报告 `base_position`） |
-| `direct_joints` | `inner` 中控制器不驱动的关节；在任何模式下都可以用 `Action.joint_names` + `joint_target` 指挥它们 |
+| `direct_joints` | `inner` 中控制器不驱动的关节；在任何模式下都可以用 `Action.joint_names` + `joint_target` 指挥它们。只带这些关节的 `BASE_VELOCITY`、`MOTION_LATENT` 或 `CARTESIAN` action（没有 `base_velocity`、`latent` 或 `ee_targets`）只更新它们，参考和它的超时不变 |
+| `base_velocity_limits` | 控制器的 `velocity_limits`：`base_velocity` 每个轴的 `(min, max)`，单位同它的取值。没有 `BASE_VELOCITY` 或没给时为 `None`。不强制 |
 | `cartesian_targets`, `motion_spaces` | 来自控制器 |
 | `connect()`, `reset()` | 在 `start_seconds` 内插值到 `default_pos`，然后运行控制器。真机的 `inner` 会得到一个以 `1 / control_dt` 运行的线程 |
 | `send_action(action)` | 设置命令。仿真中还会运行一个外层周期的 tick，所以重复发送上一条命令就会推进仿真时间 |
@@ -448,6 +452,13 @@ hiWBC 通过 `hirobot.drivers` entry point 把它注册为 `wbc` layer，所以 
 每个 tick 的参考依次取：正在运行的行为、正在播放的片段、比 `timeout_s` 更新的上一条 `BASE_VELOCITY` /
 `MOTION_LATENT` / `CARTESIAN` 命令、正在走向的 `BASE_POSE` 目标，否则是 `Controller.stand_reference`。
 没有站立参考的控制器在 PD 下保持 `default_pos`。
+
+`hiwbc.robot_configs()` 返回包里自带的 hiRobot 配置 `{名字: Path}`，每个都是自由站立的 MuJoCo G1 加
+`wbc` layer：`g1_sonic`（SONIC；需要 `onnx` extra 和 SONIC checkpoint）和 `g1_unitree_loco`
+（`unitree_loco` LSTM；需要 `torch` extra 和 RoboJuDo 的 `unitree/policy_lstm_1.pt`）。用
+`make_robot(path)` 打开。它们在 `hiwbc/hirobot_configs/robots/`，登记在 hiRobot 的 `hirobot.configs`
+entry point 下，所以 hiRobot 也能按名字找到：
+`make_robot("g1_sonic")`、`defaults: [robots/g1_sonic]`。hiRobot 内置的同名配置优先。
 
 tick 中出现异常时，layer 进入故障状态并急停整个栈（hiRobot 的 `Layer.estop`：先停最底下的机器人，
 Unitree 或 MuJoCo 本体会进入阻尼，kp 为 0；然后 layer 停掉自己的线程）：在 `reset()` 之前 `send_action`

@@ -63,11 +63,12 @@ General conventions:
 | `BehaviorSpec`, `ReferenceSource` | dataclass / protocol | `hiwbc.types` | A behavior a controller ships with, and the per-tick source it returns |
 | `Controller` | abstract class | `hiwbc.controller` | `observe` → `forward` → shared post-processing |
 | `register_controller`, `make_controller`, `available_controllers` | functions | `hiwbc.registry` | Name-based controller registry |
-| `load`, `get_profile`, `available_profiles`, `register_profile`, `Profile` | functions / dataclass | `hiwbc.registry` | Profiles: a controller with a robot's trained values and checkpoint |
+| `load`, `profile_info`, `get_profile`, `available_profiles`, `register_profile`, `Profile` | functions / dataclass | `hiwbc.registry` | Profiles: a controller with a robot's trained values and checkpoint |
 | `load_onnx_runner`, `load_torchscript_runner` | functions | `hiwbc.runtime` | Build a `forward_fn` from a checkpoint file |
 | `WbcRobot` | class | `hiwbc.robot` | The hiRobot layer (`type: wbc`); imports `hirobot`, so not re-exported |
 | `make_remote`, `RemoteFn`, `ForwardTimeout`, `RemoteError` | function / classes | `hiwbc.remote` | Run a controller's model forward on `hiwbc.serve` |
 | `ModelServer` | class | `hiwbc.serve` | The forward service (`python -m hiwbc.serve`) |
+| `robot_configs` | function | `hiwbc.examples` | Name -> path of the robot configs shipped with hiWBC ([WbcRobot](#wbcrobot-the-hirobot-layer)) |
 | `__version__` | str | `hiwbc` | Package version |
 
 Importing `hiwbc` imports `hiwbc.controllers`, which registers the built-in
@@ -177,7 +178,7 @@ A `str` enum naming what the controller is commanded with.
 ```python
 Controller(*, num_actions, default_pos, action_scale=1.0, action_clip=None, action_beta=1.0,
            joint_names=None, obs_joint_names=None, kp=None, kd=None, control_dt=0.02,
-           cartesian_targets=None, stand_command=None)
+           cartesian_targets=None, stand_command=None, velocity_limits=None)
 ```
 
 | Argument | Description |
@@ -193,10 +194,12 @@ Controller(*, num_actions, default_pos, action_scale=1.0, action_clip=None, acti
 | `control_dt` | Control period, s |
 | `cartesian_targets` | End-effector name -> controller target name, for controllers that take Cartesian targets. Only `sonic` with its planner sets it (`left_hand` -> `left_wrist`, `right_hand` -> `right_wrist`) |
 | `stand_command` | The `VELOCITY` command that means "stand still" for this checkpoint (not always zero) |
+| `velocity_limits` | Per-axis `(min, max)` of a `[vx, vy, wz]` `VELOCITY` command the profile was tested at, in the units the command takes. `None`: not given. The `sonic` (with planner) and `unitree_loco` `default` profiles set `((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0))` |
 
 The constructor raises `ValueError` for a wrongly shaped `default_pos`,
 `action_scale`, `kp` or `kd`, a non-positive `action_scale`, `action_clip` or
-`control_dt`, an `action_beta` outside `(0, 1]`, `joint_names` of the wrong
+`control_dt`, an `action_beta` outside `(0, 1]`, `velocity_limits` that are not three
+`(min, max)` pairs with `min <= 0 <= max`, `joint_names` of the wrong
 length or with a repeat, or `obs_joint_names` without `joint_names`.
 
 | Member | Description |
@@ -265,9 +268,10 @@ ctrl = hiwbc.load("beyondmimic_tracker/unitree_g1", variant="jump_wose",
 | Function | Description |
 |---|---|
 | `load(profile, **options) -> Controller` | Build the controller. `options` are `variant` plus the profile's `default_options`; another key raises `TypeError`, an unknown variant `ValueError`. The checkpoint is loaded here, so a missing file fails now. `runtime="remote"`, `endpoint`, `remote_timeout_s` run the forward on a server ([Remote inference](#remote-inference)) |
-| `get_profile(name) -> Profile` | The `Profile` (`name`, `variants`, `default_variant`, `default_options`, `description`). Imports its module on first use |
+| `profile_info(profile, options=None) -> dict` | What `load(profile, **options)` would build, without loading a checkpoint or a model runtime: `description`, `variant`, `joint_names` (the joints the controller drives), `velocity_limits` (as `WbcRobot.base_velocity_limits`), `missing_files` (checkpoint files `load` would open that are not on disk; `[]`: all there). `options` may be a whole `wbc` layer entry: keys that are not the profile's are ignored. A field the profile does not describe is `None`; `sonic/unitree_g1` and `unitree_loco/unitree_g1` describe all of them. Unknown profile `KeyError`, unknown variant `ValueError` |
+| `get_profile(name) -> Profile` | The `Profile` (`name`, `variants`, `default_variant`, `default_options`, `description`, `info`). Imports its module on first use |
 | `available_profiles() -> list[str]` | Shipped and registered profiles. Lists module names without importing them, so no model runtime is loaded |
-| `register_profile(name, *, build, variants, default_options=None, description="")` | Register a profile from a `configs/` module. `build(variant_data, options) -> Controller` |
+| `register_profile(name, *, build, variants, default_options=None, description="", info=None)` | Register a profile from a `configs/` module. `build(variant_data, options) -> Controller`; `info(variant_data, options) -> dict` with `joint_names`, `velocity_limits`, `files` (checkpoint paths), for `profile_info` |
 
 `default_variant` is `"default"` if there is one, else the first listed.
 
@@ -480,7 +484,8 @@ through a full setup and lists the options.
 | Member | Description |
 |---|---|
 | `action_modes` | From the controller: `BASE_VELOCITY` (accepts `VELOCITY`), `MOTION_LATENT` (`LATENT`), `MOTION_CLIP` (`motion_spaces`), `CARTESIAN` (`cartesian_targets` and `VELOCITY`), `BASE_POSE` (`BASE_VELOCITY` and the robot reports `base_position`) |
-| `direct_joints` | Joints of `inner` the controller does not drive; command them with `Action.joint_names` + `joint_target` beside any mode |
+| `direct_joints` | Joints of `inner` the controller does not drive; command them with `Action.joint_names` + `joint_target` beside any mode. A `BASE_VELOCITY`, `MOTION_LATENT` or `CARTESIAN` action with only these (no `base_velocity`, `latent` or `ee_targets`) updates them and leaves the reference and its timeout as they were |
+| `base_velocity_limits` | The controller's `velocity_limits`: per-axis `(min, max)` of `base_velocity`, in the units it takes. `None` without `BASE_VELOCITY` or limits. Not enforced |
 | `cartesian_targets`, `motion_spaces` | From the controller |
 | `connect()`, `reset()` | Ramp to `default_pos` over `start_seconds`, then run the controller. A real `inner` gets a thread at `1 / control_dt` |
 | `send_action(action)` | Set the command. In simulation, also run one outer period of ticks, so repeating the last command advances simulated time |
@@ -495,6 +500,16 @@ last `BASE_VELOCITY` / `MOTION_LATENT` / `CARTESIAN` command if newer than
 `timeout_s`, a `BASE_POSE` goal being walked to, else
 `Controller.stand_reference`. A controller with no standing reference holds
 `default_pos` under PD.
+
+`hiwbc.robot_configs()` returns `{name: Path}` of the hiRobot configs shipped
+in the package, each a free-standing MuJoCo G1 with a `wbc` layer:
+`g1_sonic` (SONIC; `onnx` extra and the SONIC checkpoints) and
+`g1_unitree_loco` (the `unitree_loco` LSTM; `torch` extra and RoboJuDo's
+`unitree/policy_lstm_1.pt`). Open one with `make_robot(path)`. They are in
+`hiwbc/hirobot_configs/robots/`, registered under hiRobot's `hirobot.configs`
+entry point, so hiRobot also finds them by
+name: `make_robot("g1_sonic")`, `defaults: [robots/g1_sonic]`. A built-in
+hiRobot config with the same name comes first.
 
 An exception in a tick puts the layer in the fault state and e-stops the stack
 (hiRobot's `Layer.estop`: the robot at the bottom first, which damps a Unitree

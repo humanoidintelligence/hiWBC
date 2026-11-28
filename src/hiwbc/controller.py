@@ -56,6 +56,7 @@ class Controller(ABC):
         control_dt: float = 0.02,
         cartesian_targets: dict[str, str] | None = None,
         stand_command: Sequence[float] | None = None,
+        velocity_limits: Sequence[Sequence[float]] | None = None,
     ) -> None:
         self.num_actions = num_actions
         self.default_pos = np.asarray(default_pos, dtype=np.float32)
@@ -93,6 +94,14 @@ class Controller(ABC):
         self.stand_command = (
             None if stand_command is None else np.asarray(stand_command, dtype=np.float32).reshape(-1)
         )
+        # Per-axis (min, max) of a [vx, vy, wz] VELOCITY command tested to walk;
+        # None = not given (or the command is not a zero-means-stand [vx, vy, wz]).
+        self.velocity_limits = None
+        if velocity_limits is not None:
+            lim = np.asarray(velocity_limits, dtype=float)
+            if lim.shape != (3, 2) or not np.all(lim[:, 0] <= 0) or not np.all(lim[:, 1] >= 0):
+                raise ValueError("velocity_limits must be three (min, max) pairs with min <= 0 <= max")
+            self.velocity_limits = tuple((float(a), float(b)) for a, b in lim)
         # A scalar, or one scale per joint (e.g. SONIC's effort-limit / stiffness scale).
         action_scale = np.asarray(action_scale, dtype=np.float32)
         if action_scale.shape not in ((), (num_actions,)):

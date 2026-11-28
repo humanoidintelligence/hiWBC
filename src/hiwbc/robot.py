@@ -304,6 +304,18 @@ class WbcRobot(Layer):
         return self._modes
 
     @property
+    def base_velocity_limits(self) -> tuple[tuple[float, float], ...] | None:
+        """Per-axis ``(min, max)`` of ``base_velocity`` ``[vx, vy, wz]`` the profile was tested at.
+
+        In the units ``base_velocity`` takes for this controller. ``None`` when
+        the controller takes no ``BASE_VELOCITY`` or its profile gives no limits.
+        ``WbcRobot`` does not clamp to them.
+        """
+        if ControlMode.BASE_VELOCITY not in self._modes:
+            return None
+        return getattr(self.controller, "velocity_limits", None)
+
+    @property
     def cartesian_targets(self):  # type: ignore[override]
         if ControlMode.CARTESIAN not in self._modes:
             return ()
@@ -422,6 +434,11 @@ class WbcRobot(Layer):
         with self._lock:
             if action.joint_names is not None:
                 self._set_direct(action)
+                if self._direct_only(action):
+                    # Only the free joints change; the reference (and its timeout) stays.
+                    if self.simulated:
+                        self._advance_outer()
+                    return
             if mode == ControlMode.BASE_VELOCITY:
                 if action.base_velocity is None:
                     raise ValueError("BASE_VELOCITY needs base_velocity [vx, vy, wz]")
@@ -442,6 +459,14 @@ class WbcRobot(Layer):
             self._cmd_goal = self._goal.tolist() if mode == ControlMode.BASE_POSE else None
         if self.simulated:
             self._advance_outer()
+
+    @staticmethod
+    def _direct_only(action: Action) -> bool:
+        """``joint_names`` + ``joint_target`` and nothing for the mode itself."""
+        mode = action.mode
+        return ((mode == ControlMode.BASE_VELOCITY and action.base_velocity is None)
+                or (mode == ControlMode.MOTION_LATENT and action.latent is None)
+                or (mode == ControlMode.CARTESIAN and not action.ee_targets))
 
     def _set_direct(self, action: Action) -> None:
         names = list(action.joint_names)

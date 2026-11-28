@@ -1,0 +1,26 @@
+# Unitree's unitree_rl_gym LSTM walking policy on the free-standing MuJoCo G1
+# (hiRobot's `sim` extra, hiWBC's `torch` extra, RoboJuDo's `unitree/policy_lstm_1.pt`
+# under the profile's checkpoint_dir, default ~/.cache/hiwbc/robojudo/g1 or
+# $HIWBC_ROBOJUDO_MODELS). The policy drives the 12 leg joints; the waist and
+# arms are direct joints held under PD.
+defaults: [robots/unitree_g1_mujoco_standing]
+
+assembly:
+  parts:
+    body:
+      overrides:
+        model:    # start in the policy's standing pose (G1 SDK order)
+          home: [-0.1, 0, 0, 0.3, -0.2, 0, -0.1, 0, 0, 0.3, -0.2, 0,
+                 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+
+sim:
+  realtime: false
+  ramp_seconds: 0.0
+
+layers:
+  - type: wbc
+    profile: unitree_loco/unitree_g1
+    start_seconds: 0.0
+    # waist yaw / roll / pitch, then the 14 arm joints (direct_joints order)
+    direct_kp: [200, 200, 200, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40, 40]
+    direct_kd: [6, 6, 6, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2]

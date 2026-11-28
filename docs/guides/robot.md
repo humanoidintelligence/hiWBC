@@ -134,10 +134,17 @@ Rules that apply to every mode:
 - **Timeout.** A `BASE_VELOCITY`, `CARTESIAN` or `MOTION_LATENT` command older than
   `timeout_s` (0.5 s) is dropped and the robot stands still. A caller has to keep
   sending. `BASE_POSE` and `MOTION_CLIP` run until they finish.
-- **`hold()`** stands still in place.
+- **`hold()`** stands still in place. An idle caller calls it once, then lets
+  time pass without sending (in simulation through hiRobot's idle step); it does
+  not send a zero velocity, which is not standing for every controller
+  (`smooth_loco` stands at `[-0.5, 0, -0.5]`).
 - **Joints the controller does not drive** (fingers, or the arms of a legs-only
   policy) are in `robot.direct_joints`. Command them in the same `Action` with
-  `joint_names` + `joint_target`.
+  `joint_names` + `joint_target`. Leave out the mode's own field (`base_velocity`,
+  `latent`, `ee_targets`) to move only them: the reference and its timeout stay.
+- **Speed range.** `robot.base_velocity_limits` is the per-axis `(min, max)` of
+  `base_velocity` the profile was tested at, in its units (`None` if not given),
+  for scaling a joystick. The layer does not clamp to it.
 - **Layer skills.** `stand` and the controller's behaviors (for example
   BeyondMimic's `dance`) are listed by `robot.list_layer_skills()` and started
   with `robot.run_layer_skill(name)`; `robot.stop_layer_skill()` ends one. While

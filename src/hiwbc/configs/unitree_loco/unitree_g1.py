@@ -12,6 +12,7 @@ Variants:
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from ...controllers.unitree import ObsScales, UnitreeLocoController
 from ...registry import register_profile
@@ -54,7 +55,10 @@ GAIT = Variant(
     default_pos=(-0.1, 0.0, 0.0, 0.3, -0.2, 0.0) * 2,
     kp=(100, 100, 100, 150, 40, 40) * 2,
     kd=(2, 2, 2, 4, 2, 2) * 2,
+    # velocity_limits: normalized (x max_cmd); each axis walked 4 s without falling
+    # on the free MuJoCo G1 at these values.
     params={"with_gait": True, "cycle_time": 0.8, "max_cmd": (0.8, 0.5, 1.57),
+                "velocity_limits": ((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0)),
                 "obs_scales": ObsScales(dof_pos=1.0, dof_vel=0.05, ang_vel=0.25, command=(2.0, 2.0, 0.25)),
                 "action_scale": 0.25, "action_clip": None, "action_beta": 0.8},
 )
@@ -72,6 +76,11 @@ WO_GAIT = Variant(
 )
 
 
+def info(v: Variant, options: dict) -> dict:
+    return {"joint_names": v.joint_names, "velocity_limits": v.params.get("velocity_limits"),
+            "files": [Path(options["checkpoint_dir"]).expanduser() / v.checkpoint]}
+
+
 def build(v: Variant, options: dict) -> UnitreeLocoController:
     fn = load_torchscript_runner(checkpoint(options["checkpoint_dir"], v.checkpoint), device=options["device"])
     ctrl = UnitreeLocoController(
@@ -87,4 +96,5 @@ register_profile(
     variants={"default": GAIT, "wo_gait": WO_GAIT},
     default_options={"checkpoint_dir": ROBOJUDO_MODELS, "device": "cpu"},
     description="Unitree's G1 velocity policies (unitree_rl_gym LSTM / unitree_rl_lab)",
+    info=info,
 )

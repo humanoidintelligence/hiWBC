@@ -5,6 +5,38 @@ User-facing changes in each hiWBC release, newest first. The format follows
 release may change the API incompatibly; such changes are listed under
 "Removed" or "Changed" and marked **breaking**.
 
+## [0.0.4] - 2026-11-28
+
+Ready-made robot configs and controller descriptions for front ends such as
+hiApp. Needs hiRobot 0.0.9 or later.
+
+### Changed
+
+- **breaking**: needs hiRobot 0.0.9 or later (was 0.0.7). From 0.0.9 a `wbc`
+  layer on a part keeps ticking in simulation when an action leaves its part
+  out, and hiRobot finds hiWBC's robot configs by name.
+
+### Added
+
+- `hiwbc.profile_info(profile, options=None)`: description, variant, driven
+  joints, velocity limits and missing checkpoint files of a profile, without
+  loading a checkpoint. `sonic/unitree_g1` and `unitree_loco/unitree_g1` fill
+  every field (`register_profile(..., info=...)`); others give the description.
+- Robot configs shipped in the package, each a free-standing MuJoCo G1 with a
+  `wbc` layer: `g1_sonic` and `g1_unitree_loco`. hiWBC registers them under
+  hiRobot's `hirobot.configs` entry point, so `make_robot("g1_sonic")` and
+  `defaults: [robots/g1_sonic]` find them by name; `hiwbc.robot_configs()`
+  returns name -> path.
+- `WbcRobot.base_velocity_limits`: per-axis `(min, max)` of `base_velocity`
+  the profile was tested at, for scaling a joystick (not enforced). Set from the
+  new `Controller` argument `velocity_limits`; the `sonic/unitree_g1` (with
+  planner) and `unitree_loco/unitree_g1` `default` profiles give
+  `((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0))`, each axis walked without falling
+  on the free MuJoCo G1.
+- A `BASE_VELOCITY`, `MOTION_LATENT` or `CARTESIAN` action with only
+  `joint_names` + `joint_target` (no `base_velocity`, `latent` or `ee_targets`)
+  moves the direct joints and leaves the reference and its timeout unchanged.
+
 ## [0.0.3] - 2026-11-27
 
 The `blinkmimic` controller runs BlinkMimic and XMimic tracking policies on the
@@ -108,6 +140,7 @@ First public release. Needs hiRobot 0.0.3 or later.
   robot earlier through RoboJuDo); `sonic` matches NVIDIA's C++ deployment and
   `supermimic` matches supermimic_deploy.
 
+[0.0.4]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

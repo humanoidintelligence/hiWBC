@@ -52,6 +52,58 @@ def test_load_rejects_unknown_profile_option_and_variant():
         hiwbc.load("echo/default", variant="nope")
 
 
+@pytest.mark.parametrize("name, options", [
+    ("sonic/unitree_g1", {}),
+    ("sonic/unitree_g1", {"planner": False}),
+    ("unitree_loco/unitree_g1", {}),
+    ("unitree_loco/unitree_g1", {"variant": "wo_gait"}),
+])
+def test_profile_info_matches_the_built_controller(name, options):
+    info = hiwbc.profile_info(name, options)
+    assert info["description"] == hiwbc.get_profile(name).description
+    if info["missing_files"]:
+        pytest.skip(f"checkpoints not on this machine: {info['missing_files']}")
+    assert info["missing_files"] == []
+    try:
+        ctrl = hiwbc.load(name, **options)
+    except ImportError as e:
+        pytest.skip(f"{name}: runtime not installed ({e})")
+    assert info["variant"] == ctrl.variant
+    assert info["joint_names"] == list(ctrl.joint_names)
+    assert info["velocity_limits"] == ctrl.velocity_limits
+
+
+def test_profile_info_loads_nothing_and_lists_missing_files(tmp_path):
+    code = ("import sys, hiwbc; "
+            f"i = hiwbc.profile_info('sonic/unitree_g1', {{'checkpoint_dir': {str(tmp_path)!r}}}); "
+            f"j = hiwbc.profile_info('unitree_loco/unitree_g1', {{'checkpoint_dir': {str(tmp_path)!r}}}); "
+            "print(len(i['missing_files']), len(j['missing_files']), "
+            "'torch' in sys.modules, 'onnxruntime' in sys.modules)")
+    out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, check=True)
+    assert out.stdout.split() == ["3", "1", "False", "False"]
+
+    (tmp_path / "unitree").mkdir()
+    (tmp_path / "unitree" / "policy_lstm_1.pt").write_bytes(b"")
+    info = hiwbc.profile_info("unitree_loco/unitree_g1", {"checkpoint_dir": str(tmp_path)})
+    assert info["missing_files"] == []
+    no_planner = hiwbc.profile_info("sonic/unitree_g1", {"checkpoint_dir": str(tmp_path),
+                                                         "planner": False, "encoder": False})
+    assert no_planner["missing_files"] == [str(tmp_path / "model_decoder.onnx")]
+    assert no_planner["velocity_limits"] is None
+    assert len(no_planner["joint_names"]) == 29
+
+
+def test_profile_info_ignores_layer_keys_and_rejects_unknown_names():
+    info = hiwbc.profile_info("unitree_loco/unitree_g1", {"type": "wbc", "start_seconds": 0.0})
+    assert info["variant"] == "default" and len(info["joint_names"]) == 12
+    echo = hiwbc.profile_info("echo/default")
+    assert echo["description"] and echo["joint_names"] is None and echo["missing_files"] is None
+    with pytest.raises(KeyError):
+        hiwbc.profile_info("nope/unitree_g1")
+    with pytest.raises(ValueError):
+        hiwbc.profile_info("unitree_loco/unitree_g1", {"variant": "nope"})
+
+
 def test_register_profile_validates_name_and_sets_profile_on_controller():
     with pytest.raises(ValueError, match="<controller>/<robot>"):
         hiwbc.register_profile("bad", build=lambda v, o: None, variants={"default": 1})

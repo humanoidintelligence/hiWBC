@@ -17,8 +17,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
       - run: pip install "ruff>=0.4"
@@ -35,10 +35,10 @@ jobs:
         # The oldest tag is the lower bound in pyproject.toml; main is the latest release.
         # Every Python from requires-python (>=3.10) up.
         python: ["3.10", "3.11", "3.12", "3.13"]
-        hirobot: ["v0.0.7", "main"]
+        hirobot: ["v0.0.9", "main"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: ${{ matrix.python }}
           cache: pip

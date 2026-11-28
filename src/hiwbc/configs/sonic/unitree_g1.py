@@ -244,16 +244,37 @@ SONIC_CHECKPOINTS = "~/.cache/hiwbc/sonic"
 _VARIANT_SUBDIR = {"default": "", "low_latency": "low_latency", "sonic_v1_1": "sonic_v1_1"}
 #: Standing root height for ``stand_reference`` (the deployment's default base z).
 G1_STAND_ROOT_Z = 0.793
+#: ``[vx, vy, wz]`` per-axis (min, max) for ``BASE_VELOCITY`` through the planner (m/s, rad/s).
+SONIC_VELOCITY_LIMITS = ((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0))
+
 #: The locomotion planner, shared by every variant (``planner_sonic.onnx``, V2).
 SONIC_PLANNER = "planner_sonic.onnx"
+
+
+def _files(obs: SonicObsConfig, options: dict) -> dict[str, str]:
+    """The checkpoint files ``_build`` opens: decoder, then encoder and planner if used."""
+    sub = _VARIANT_SUBDIR[next(k for k, v in SONIC_VARIANTS.items() if v is obs)]
+    root = os.path.join(options["checkpoint_dir"], sub)
+    files = {"decoder": os.path.join(root, "model_decoder.onnx")}
+    if options["encoder"]:
+        files["encoder"] = os.path.join(root, "model_encoder.onnx")
+    if options["planner"]:
+        files["planner"] = os.path.join(options["checkpoint_dir"], SONIC_PLANNER)
+    return {k: os.path.expanduser(v) for k, v in files.items()}
+
+
+def _info(obs: SonicObsConfig, options: dict) -> dict:
+    planner = options["planner"] and options["encoder"]
+    return {"joint_names": SONIC_G1.joint_names,
+            "velocity_limits": SONIC_VELOCITY_LIMITS if planner else None,
+            "files": list(_files(obs, options).values())}
 
 
 def _build(obs: SonicObsConfig, options: dict):
     from ...controllers.sonic import SonicController
     from .._common import checkpoint
 
-    sub = _VARIANT_SUBDIR[next(k for k, v in SONIC_VARIANTS.items() if v is obs)]
-    root = os.path.join(options["checkpoint_dir"], sub)
+    files = _files(obs, options)
     planner = None
     if options["planner"]:
         if not options["encoder"]:
@@ -261,7 +282,7 @@ def _build(obs: SonicObsConfig, options: dict):
         from ...controllers.sonic_planner import SonicPlanner, load_planner_runner
 
         planner = SonicPlanner(
-            load_planner_runner(str(checkpoint(options["checkpoint_dir"], SONIC_PLANNER)),
+            load_planner_runner(str(checkpoint(files["planner"])),
                                 providers=options["providers"]),
             qpos_joint_index=ISAACLAB_TO_MUJOCO_INDEX,
             lower_body_index=G1_LOWER_BODY_INDEX,
@@ -269,11 +290,13 @@ def _build(obs: SonicObsConfig, options: dict):
             background=options["planner_thread"],
         )
     ctrl = SonicController.from_onnx(
-        str(checkpoint(root, "model_decoder.onnx")),
-        str(checkpoint(root, "model_encoder.onnx")) if options["encoder"] else None,
+        str(checkpoint(files["decoder"])),
+        str(checkpoint(files["encoder"])) if options["encoder"] else None,
         providers=options["providers"],
         robot=SONIC_G1, obs=obs, encoder_mode=options["encoder_mode"],
         stand_root_z=G1_STAND_ROOT_Z, planner=planner,
+        # Each axis walked 4 s without falling on the free MuJoCo G1 at these values.
+        velocity_limits=SONIC_VELOCITY_LIMITS if planner else None,
         cartesian_targets={"left_hand": "left_wrist", "right_hand": "right_wrist"} if planner else None,
     )
     ctrl.reset()
@@ -287,4 +310,5 @@ register_profile(
     default_options={"checkpoint_dir": SONIC_CHECKPOINTS, "providers": None, "encoder": True,
                      "encoder_mode": "joint", "planner": True, "planner_thread": False},
     description="NVIDIA GEAR-SONIC on the 29-DoF G1",
+    info=_info,
 )

@@ -4,6 +4,30 @@
 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。0.1.0 之前任何版本都可能有不兼容的接口改动，
 这类改动列在"移除"或"变更"下，并标 **不兼容**。
 
+## [0.0.4] - 2026-11-28
+
+给 hiApp 这类前端用的现成机器人配置和控制器说明。需要 hiRobot 0.0.9 或更高版本。
+
+### 变更
+
+- **不兼容**：需要 hiRobot 0.0.9 或更高版本（原为 0.0.7）。从 0.0.9 起，action 没提到某个 part 时，
+  这个 part 上的 `wbc` layer 在仿真里照样 tick；hiRobot 也能按名字找到 hiWBC 的机器人配置。
+
+### 新增
+
+- `hiwbc.profile_info(profile, options=None)`：profile 的说明、variant、驱动的关节、速度上限和缺的
+  checkpoint 文件，不加载 checkpoint。`sonic/unitree_g1` 和 `unitree_loco/unitree_g1` 每个字段都给
+  （`register_profile(..., info=...)`）；其他 profile 只给说明。
+- 包里自带的机器人配置，每个都是自由站立的 MuJoCo G1 加 `wbc` layer：`g1_sonic` 和 `g1_unitree_loco`。
+  hiWBC 把它们登记在 hiRobot 的 `hirobot.configs` entry point 下，所以 `make_robot("g1_sonic")` 和
+  `defaults: [robots/g1_sonic]` 能按名字找到；`hiwbc.robot_configs()` 返回名字 -> 路径。
+- `WbcRobot.base_velocity_limits`：profile 测试过的 `base_velocity` 每个轴的 `(min, max)`，给摇杆换算用
+  （不强制）。来自 `Controller` 的新参数 `velocity_limits`；`sonic/unitree_g1`（带 planner）和
+  `unitree_loco/unitree_g1` 的 `default` profile 设为 `((-0.8, 1.0), (-0.5, 0.5), (-1.0, 1.0))`，
+  每个轴都在自由站立的 MuJoCo G1 上走过、没倒。
+- 只带 `joint_names` + `joint_target` 的 `BASE_VELOCITY`、`MOTION_LATENT` 或 `CARTESIAN` action
+  （没有 `base_velocity`、`latent` 或 `ee_targets`）只动 direct 关节，参考和它的超时不变。
+
 ## [0.0.3] - 2026-11-27
 
 `blinkmimic` 控制器在 G1 上运行 BlinkMimic 和 XMimic 的跟踪 policy。需要 hiRobot 0.0.7 或更高版本，以及 Python 3.10 或更高版本。
@@ -78,6 +102,7 @@
 - 这个版本只在仿真里跑过。沿用 RoboJuDo 的控制器在 MuJoCo 里和 RoboJuDo 逐 tick 一致（这些 policy
   以前经 RoboJuDo 在真机上跑过）；`sonic` 和 NVIDIA 的 C++ 部署一致，`supermimic` 和 supermimic_deploy 一致。
 
+[0.0.4]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.3...v0.0.4
 [0.0.3]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.2...v0.0.3
 [0.0.2]: https://github.com/humanoidintelligence/hiWBC/compare/v0.0.1...v0.0.2
 [0.0.1]: https://github.com/humanoidintelligence/hiWBC/releases/tag/v0.0.1

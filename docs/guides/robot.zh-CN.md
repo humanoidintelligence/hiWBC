@@ -118,9 +118,13 @@ hiRobot 的 MuJoCo G1 是真实 G1 的配置加上一层 MuJoCo 覆盖，所以�
 
 - **超时。** 超过 `timeout_s`（0.5 s）的 `BASE_VELOCITY`、`CARTESIAN` 或 `MOTION_LATENT` 命令会被
   丢弃，机器人站住。调用方必须持续发送。`BASE_POSE` 和 `MOTION_CLIP` 运行到结束为止。
-- **`hold()`** 原地站住。
+- **`hold()`** 原地站住。调用方空闲时调一次，之后不发命令、只让时间走（仿真里用 hiRobot 的 idle step）；
+  不要发零速度，零速度不是每个控制器的站立（`smooth_loco` 的站立是 `[-0.5, 0, -0.5]`）。
 - **控制器不驱动的关节**（手指，或只控制腿的 policy 的手臂）列在 `robot.direct_joints` 中。在同一个
-  `Action` 里用 `joint_names` + `joint_target` 控制它们。
+  `Action` 里用 `joint_names` + `joint_target` 控制它们。不填该模式本身的字段（`base_velocity`、
+  `latent`、`ee_targets`）时只动这些关节，参考和它的超时不变。
+- **速度范围。** `robot.base_velocity_limits` 是 profile 测试过的 `base_velocity` 每个轴的 `(min, max)`，
+  单位同它的取值（没给时为 `None`），用来缩放摇杆。layer 不按它截断。
 - **Layer skill。** `stand` 和控制器的行为（behavior，例如 BeyondMimic 的 `dance`）由
   `robot.list_layer_skills()` 列出，用 `robot.run_layer_skill(name)` 启动，用
   `robot.stop_layer_skill()` 结束。行为运行期间 layer 持有命令流，所以直接调用 `send_action` 会抛出

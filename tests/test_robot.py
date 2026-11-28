@@ -167,6 +167,59 @@ def test_joint_commands_only_for_direct_joints():
         robot.send_action(_act(mode=ControlMode.CARTESIAN, ee_targets={}))
 
 
+def test_direct_joints_alone_keep_the_reference_and_its_timeout():
+    ctrl = Recorder()
+    robot, inner = _robot(ctrl)
+    robot.send_action(_act(mode=ControlMode.BASE_VELOCITY, base_velocity=[0.3, 0, 0]))
+    for _ in range(10):   # 0.2 s of direct-joint-only actions: still walking
+        robot.send_action(_act(mode=ControlMode.BASE_VELOCITY, joint_names=["j5"],
+                               joint_target=[0.7]))
+    np.testing.assert_allclose(ctrl.refs[-1].value, [0.3, 0, 0])
+    np.testing.assert_allclose(inner.get_observation().joint_pos[5], 0.7)
+    for _ in range(20):   # past timeout_s (0.5 s): they do not renew the command
+        robot.send_action(_act(mode=ControlMode.BASE_VELOCITY, joint_names=["j5"],
+                               joint_target=[0.6]))
+    np.testing.assert_allclose(ctrl.refs[-1].value, [0, 0, 0])
+    assert robot.get_status().extra["wbc"]["mode"] == "stand"
+    np.testing.assert_allclose(inner.get_observation().joint_pos[5], 0.6)
+
+
+def test_base_velocity_limits_come_from_the_controller():
+    robot, _ = _robot()
+    assert robot.base_velocity_limits is None
+    lim = ((-0.5, 1.0), (-0.3, 0.3), (-1.0, 1.0))
+    robot, _ = _robot(Recorder(velocity_limits=lim))
+    assert robot.base_velocity_limits == lim
+    with pytest.raises(ValueError, match="min <= 0 <= max"):
+        Recorder(velocity_limits=((0.1, 1.0), (-0.3, 0.3), (-1.0, 1.0)))
+
+
+def test_robot_configs_are_shipped_and_load():
+    from hirobot.loading.config import load_config
+
+    import hiwbc
+
+    configs = hiwbc.robot_configs()
+    assert {"g1_sonic", "g1_unitree_loco"} <= set(configs)
+    for name, path in configs.items():
+        layers = load_config(str(path))["layers"]
+        assert [entry["type"] for entry in layers] == ["wbc"], name
+        assert hiwbc.get_profile(layers[0]["profile"])
+
+
+def test_robot_configs_are_found_by_name_through_the_entry_point():
+    from hirobot.loading import config
+
+    import hiwbc
+
+    if not hasattr(config, "plugin_roots"):
+        pytest.skip("this hiRobot has no hirobot.configs entry points")
+    if not any(p.name == "hirobot_configs" for p in config.plugin_roots()):
+        pytest.skip("hiwbc is not installed with its entry points")
+    for name, path in hiwbc.robot_configs().items():
+        assert config.resolve(name) == path
+
+
 def test_clip_plays_then_stands_and_reports_progress():
     ctrl = Recorder()
     robot, _ = _robot(ctrl)
